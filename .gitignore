@@ -1,0 +1,20 @@
+# Dependências do Node.js e módulos
+/node_modules
+/package-lock.json
+/npm-debug.log*
+
+# Variáveis de Ambiente e Arquivos de Configuração Secreta
+# ESSENCIAL para não enviar senhas e chaves para o repositório
+/src/.env
+.env
+.env.*
+
+# Logs, Builds e Cache
+/dist
+/build
+/temp
+/logs
+
+# Arquivos de IDEs (Ex: VS Code)
+.vscode/
+.idea/
