@@ -1,25 +1,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, Events, GatewayIntentBits, MessageFlags,IntentsBitField } = require('discord.js');
+const { Client, Collection, GatewayIntentBits } = require('discord.js');
 
+const token = process.env.DISCORD_TOKEN;
 
-const token = process.env.DISCORD_TOKEN
-
-
-const client = new Client({
-
-    intents:[
-        IntentsBitField.Flags.Guilds,
-        IntentsBitField.Flags.GuildMembers,
-        IntentsBitField.Flags.GuildMessages,
-        IntentsBitField.Flags.MessageContent,
-        IntentsBitField.Flags.GuildVoiceStates,
-    ],
-});
+const client = new Client({ intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates
+    ] });
 
 client.commands = new Collection();
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
+
 for (const folder of commandFolders) {
 	const commandsPath = path.join(foldersPath, folder);
 	const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
@@ -33,8 +28,11 @@ for (const folder of commandFolders) {
 		}
 	}
 }
+
+
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter((file) => file.endsWith('.js'));
+
 for (const file of eventFiles) {
 	const filePath = path.join(eventsPath, file);
 	const event = require(filePath);
@@ -45,4 +43,4 @@ for (const file of eventFiles) {
 	}
 }
 
-client.login(token)
+client.login(token);
