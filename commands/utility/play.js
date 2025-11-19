@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { 
     joinVoiceChannel, 
     createAudioPlayer, 
@@ -6,102 +6,212 @@ const {
     AudioPlayerStatus,
     StreamType 
 } = require('@discordjs/voice');
-const { getVoiceConnection } = require('@discordjs/voice');
-
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const https = require('node:https');
 const { spawn } = require('node:child_process');
 const ffmpeg = require('ffmpeg-static');
+
+// --- Funções Auxiliares ---
+
+/**
+ * Gera uma thumbnail a partir de um arquivo de vídeo.
+ * @param {string} videoPath - Caminho para o arquivo de vídeo.
+ * @returns {Promise<string>} - Promise que resolve com o caminho para a thumbnail gerada.
+ */
+function generateThumbnail(videoPath) {
+    return new Promise((resolve, reject) => {
+        const thumbnailPath = `${videoPath}.png`;
+        const ffmpegProcess = spawn(ffmpeg, [
+            '-i', videoPath,
+            '-ss', '00:00:01.000',
+            '-vframes', '1',
+            thumbnailPath
+        ]);
+
+        ffmpegProcess.on('close', (code) => {
+            if (code === 0) {
+                resolve(thumbnailPath);
+            } else {
+                reject(new Error(`FFmpeg falhou ao gerar thumbnail. Código: ${code}`));
+            }
+        });
+        ffmpegProcess.on('error', err => reject(err));
+    });
+}
+
+/**
+ * Toca a próxima música na fila de um servidor.
+ * @param {string} guildId - O ID do servidor.
+ * @param {import('discord.js').Client} client - A instância do cliente do bot.
+ */
+async function playNextInQueue(guildId, client) {
+    const playerInstance = client.playerInstances.get(guildId);
+    if (!playerInstance) return;
+
+    // Limpa os arquivos da música anterior (áudio e thumbnail)
+    if (playerInstance.lastSong) {
+        fs.unlink(playerInstance.lastSong.filePath, () => {});
+        if (playerInstance.lastSong.thumbnailPath) {
+            fs.unlink(playerInstance.lastSong.thumbnailPath, () => {});
+        }
+    }
+
+    if (playerInstance.queue.length === 0) {
+        playerInstance.message.edit({ content: '✅ Fila finalizada!', embeds: [], components: [], files: [] }).catch(console.error);
+        playerInstance.connection.destroy();
+        client.playerInstances.delete(guildId);
+        return;
+    }
+
+    const song = playerInstance.queue.shift();
+    playerInstance.lastSong = song;
+
+    try {
+        const resource = createAudioResource(song.filePath, { inputType: StreamType.Arbitrary });
+        playerInstance.player.play(resource);
+
+        const nowPlayingEmbed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('▶️ Tocando Agora')
+            .setDescription(`**${song.title}**`)
+            .setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`)
+            .addFields({ name: 'Pedida por', value: `<@${song.requestedBy.id}>`, inline: true })
+            .setTimestamp()
+            .setFooter({ text: `Fila: ${playerInstance.queue.length} música(s) restante(s)` });
+        
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('pause').setLabel('Pausar').setStyle(ButtonStyle.Primary).setEmoji('⏸️'),
+            new ButtonBuilder().setCustomId('skip').setLabel('Pular').setStyle(ButtonStyle.Secondary).setEmoji('⏭️'),
+            new ButtonBuilder().setCustomId('stop').setLabel('Parar').setStyle(ButtonStyle.Danger).setEmoji('⏹️')
+        );
+
+        // Edita a mensagem com o novo embed, botões E a nova thumbnail como anexo
+        await playerInstance.message.edit({ 
+            content: '',
+            embeds: [nowPlayingEmbed], 
+            components: [row],
+            files: [song.thumbnailPath]
+        }).catch(console.error);
+
+    } catch (error) {
+        console.error("Erro ao tentar tocar a próxima música:", error);
+        playerInstance.message.edit({ content: `❌ Erro ao tocar ${song.title}. Pulando...`, embeds:[], components:[], files:[] }).catch(console.error);
+        playNextInQueue(guildId, client);
+    }
+}
 
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Toca um arquivo de áudio (MP3) ou vídeo (MP4) anexo no seu canal de voz.')
+        .setDescription('Toca ou adiciona um arquivo à fila de reprodução.')
         .addAttachmentOption(option =>
-            option.setName('file') 
+            option.setName('file')
                 .setDescription('O arquivo de mídia (mp3, mp4) que você quer tocar.')
                 .setRequired(true)),
 
     async execute(interaction) {
+        await interaction.deferReply({ ephemeral: true });
 
         const attachment = interaction.options.getAttachment('file');
-        const fileName = attachment.name;
         const voiceChannel = interaction.member.voice.channel;
-        const guildId = interaction.guildId;
-
-        console.log(`Attachment: ${attachment}\nVoice Channel: ${voiceChannel}\nGuildID:${guildId}`)
 
         if (!voiceChannel) {
             return interaction.editReply('❌ Você precisa estar em um canal de voz para usar este comando!');
         }
 
-        if (!attachment || (!attachment.contentType || (!attachment.contentType.startsWith('audio/') && !attachment.contentType.startsWith('video/')))) {
-            return interaction.editReply('❌ Por favor, anexe um arquivo de mídia (MP3 ou MP4) válido para tocar.');
-        }
+        const isVideo = attachment.contentType.startsWith('video/');
 
-        const player = createAudioPlayer();
-
-        player.on('stateChange', (oldState, newState) => {
-            console.log(`Status do Player: ${oldState.status} -> ${newState.status}`);
-        });
-
-        player.once(AudioPlayerStatus.Playing, () => {
-            console.log(`Começou a tocar: ${fileName}`);
-            
-            // Editamos a resposta original para avisar no chat
-            interaction.reply(`▶️ Tocando agora: \`${fileName}\``);
-        });
-
-        player.on('error', error => {console.error(`Erro: ${error.message}`)});
-
+        const tempDir = os.tmpdir();
+        const tempFilePath = path.join(tempDir, `gemini-bot-${Date.now()}-${attachment.name}`);
+        const fileStream = fs.createWriteStream(tempFilePath);
+        
         https.get(attachment.url, (responseStream) => {
+            responseStream.pipe(fileStream);
 
-        const ffmpegProcess = spawn(ffmpeg, [
-            '-i', 'pipe:0',              // "pipe:0" significa: Leia o que vem da entrada padrão (do Node)
-            '-vn',                       // Remove vídeo
-            '-ac', '2',                  // 2 canais
-            '-ar', '48000',              // 48khz
-            '-f', 'mp3',                 // Converte para MP3
-            '-'                          // Manda para a saída padrão
-        ]);
+            fileStream.on('finish', async () => {
+                try {
+                    // Gera a thumbnail SE for um vídeo
+                    const thumbnailPath = isVideo 
+                        ? await generateThumbnail(tempFilePath) 
+                        : null;
 
-        
-        ffmpegProcess.stderr.on('data', (data) => {
-            // Se quiser ver o log técnico, descomente a linha abaixo:
-            //console.log(`FFmpeg Log: ${data.toString()}`);
+                    const song = {
+                        filePath: tempFilePath,
+                        thumbnailPath: thumbnailPath,
+                        title: attachment.name,
+                        requestedBy: interaction.user
+                    };
+
+                    let playerInstance = interaction.client.playerInstances.get(interaction.guildId);
+
+                    if (!playerInstance) {
+                        const player = createAudioPlayer()
+                            .on(AudioPlayerStatus.Idle, () => playNextInQueue(interaction.guildId, interaction.client))
+                            .on('error', (error) => {
+                                console.error(`Erro no player do guild ${interaction.guildId}:`, error);
+                                playNextInQueue(interaction.guildId, interaction.client);
+                            });
+
+                        const connection = joinVoiceChannel({
+                            channelId: voiceChannel.id,
+                            guildId: interaction.guildId,
+                            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                        });
+
+                        const initialMessage = await interaction.channel.send({ content: "🎶 Configurando player..." });
+
+                        playerInstance = {
+                            player,
+                            connection,
+                            queue: [],
+                            message: initialMessage,
+                            lastSong: null
+                        };
+                        
+                        playerInstance.subscription = connection.subscribe(player);
+                        interaction.client.playerInstances.set(interaction.guildId, playerInstance);
+                    }
+
+                    playerInstance.queue.push(song);
+                    
+                    const addedToQueueEmbed = new EmbedBuilder()
+                        .setColor('#f5b041')
+                        .setTitle('🎶 Adicionado à Fila')
+                        .setDescription(`**${song.title}**`)
+                        .addFields({ name: 'Posição na fila', value: `${playerInstance.queue.length}` });
+                    
+                    if (song.thumbnailPath) {
+                        addedToQueueEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+                    }
+
+                    await interaction.editReply({ 
+                        embeds: [addedToQueueEmbed],
+                        files: song.thumbnailPath ? [song.thumbnailPath] : []
+                    });
+
+                    if (playerInstance.player.state.status === AudioPlayerStatus.Idle) {
+                        playNextInQueue(interaction.guildId, interaction.client);
+                    }
+                } catch (err) {
+                    console.error("Erro no processamento pós-download:", err);
+                    await interaction.editReply({ content: '❌ Falha ao processar o arquivo e gerar a thumbnail.' });
+                    fs.unlink(tempFilePath, () => {});
+                }
+            });
+
+            fileStream.on('error', (err) => {
+                console.error("Erro ao salvar arquivo temporário:", err);
+                interaction.editReply("❌ Erro ao baixar ou salvar o arquivo.");
+            });
+        }).on('error', (err) => {
+            console.error("Erro de download:", err);
+            interaction.editReply("❌ Erro crítico ao tentar baixar o arquivo de mídia.");
         });
-        
-        ffmpegProcess.on('close', (code) => {
-            if (code !== 0) console.log(`FFmpeg fechou com código: ${code}`);
-        });
-        // -------------------------------------------------------------
-
-        
-        responseStream.pipe(ffmpegProcess.stdin);
-
-        
-        const resource = createAudioResource(ffmpegProcess.stdout, {
-            inputType: StreamType.Arbitrary,
-            inlineVolume: true
-        });
-
-        player.play(resource);
-        
-    }).on('error', (err) => {
-        console.error("Erro ao baixar o arquivo:", err.message);
-        interaction.editReply("❌ Erro ao baixar o arquivo de mídia.");
-    });
-    
-        const connection = joinVoiceChannel({
-            channelId : voiceChannel.id,
-            guildId : guildId,
-            adapterCreator : voiceChannel.guild.voiceAdapterCreator
-        })
-
-        const subscription = connection.subscribe(player);
-
-        if (subscription){
-            setTimeout(() => subscription.unsubscribe(),1500_000)
-        }
     }
 };
+
+// Exporta a função para poder ser usada em outros lugares, se necessário
+module.exports.playNextInQueue = playNextInQueue;
