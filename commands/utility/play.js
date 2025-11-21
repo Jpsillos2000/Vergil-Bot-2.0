@@ -13,6 +13,9 @@ const https = require('node:https');
 const { spawn } = require('node:child_process');
 const ffmpeg = require('ffmpeg-static');
 
+const musicasPath = path.join(__dirname, '..', '..', 'music');
+const musicasFiles = fs.readdirSync(musicasPath).filter(file => file.endsWith('.mp3') || file.endsWith('.mp4'));
+
 // --- Funções Auxiliares ---
 
 /**
@@ -52,9 +55,12 @@ async function playNextInQueue(guildId, client) {
 
     // Limpa os arquivos da música anterior (áudio e thumbnail)
     if (playerInstance.lastSong) {
-        fs.unlink(playerInstance.lastSong.filePath, () => {});
-        if (playerInstance.lastSong.thumbnailPath) {
-            fs.unlink(playerInstance.lastSong.thumbnailPath, () => {});
+        // Unlink only if it's a temporary file
+        if (playerInstance.lastSong.isTemp) {
+            fs.unlink(playerInstance.lastSong.filePath, () => {});
+            if (playerInstance.lastSong.thumbnailPath) {
+                fs.unlink(playerInstance.lastSong.thumbnailPath, () => {});
+            }
         }
     }
 
@@ -76,10 +82,13 @@ async function playNextInQueue(guildId, client) {
             .setColor('#0099ff')
             .setTitle('▶️ Tocando Agora')
             .setDescription(`**${song.title}**`)
-            .setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`)
             .addFields({ name: 'Pedida por', value: `<@${song.requestedBy.id}>`, inline: true })
             .setTimestamp()
             .setFooter({ text: `Fila: ${playerInstance.queue.length} música(s) restante(s)` });
+
+        if (song.thumbnailPath) {
+            nowPlayingEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+        }
         
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause').setLabel('Pausar').setStyle(ButtonStyle.Primary).setEmoji('⏸️'),
@@ -87,12 +96,11 @@ async function playNextInQueue(guildId, client) {
             new ButtonBuilder().setCustomId('stop').setLabel('Parar').setStyle(ButtonStyle.Danger).setEmoji('⏹️')
         );
 
-        // Edita a mensagem com o novo embed, botões E a nova thumbnail como anexo
         await playerInstance.message.edit({ 
             content: '',
             embeds: [nowPlayingEmbed], 
             components: [row],
-            files: [song.thumbnailPath]
+            files: song.thumbnailPath ? [song.thumbnailPath] : []
         }).catch(console.error);
 
     } catch (error) {
@@ -110,106 +118,136 @@ module.exports = {
         .addAttachmentOption(option =>
             option.setName('file')
                 .setDescription('O arquivo de mídia (mp3, mp4) que você quer tocar.')
-                .setRequired(true)),
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('musica')
+                .setDescription('Escolha uma música da lista.')
+                .setRequired(false)
+                .addChoices(...musicasFiles.map(file => ({ name: file, value: file })))),
 
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: true });
 
         const attachment = interaction.options.getAttachment('file');
+        const musica = interaction.options.getString('musica');
         const voiceChannel = interaction.member.voice.channel;
 
         if (!voiceChannel) {
             return interaction.editReply('❌ Você precisa estar em um canal de voz para usar este comando!');
         }
 
-        const isVideo = attachment.contentType.startsWith('video/');
+        if (!attachment && !musica) {
+            return interaction.editReply('❌ Você precisa fornecer um arquivo ou escolher uma música!');
+        }
 
-        const tempDir = os.tmpdir();
-        const tempFilePath = path.join(tempDir, `gemini-bot-${Date.now()}-${attachment.name}`);
-        const fileStream = fs.createWriteStream(tempFilePath);
-        
-        https.get(attachment.url, (responseStream) => {
-            responseStream.pipe(fileStream);
+        let song = {};
 
-            fileStream.on('finish', async () => {
-                try {
-                    // Gera a thumbnail SE for um vídeo
-                    const thumbnailPath = isVideo 
-                        ? await generateThumbnail(tempFilePath) 
-                        : null;
+        const processSong = async (song) => {
+            let playerInstance = interaction.client.playerInstances.get(interaction.guildId);
 
-                    const song = {
-                        filePath: tempFilePath,
-                        thumbnailPath: thumbnailPath,
-                        title: attachment.name,
-                        requestedBy: interaction.user
-                    };
-
-                    let playerInstance = interaction.client.playerInstances.get(interaction.guildId);
-
-                    if (!playerInstance) {
-                        const player = createAudioPlayer()
-                            .on(AudioPlayerStatus.Idle, () => playNextInQueue(interaction.guildId, interaction.client))
-                            .on('error', (error) => {
-                                console.error(`Erro no player do guild ${interaction.guildId}:`, error);
-                                playNextInQueue(interaction.guildId, interaction.client);
-                            });
-
-                        const connection = joinVoiceChannel({
-                            channelId: voiceChannel.id,
-                            guildId: interaction.guildId,
-                            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-                        });
-
-                        const initialMessage = await interaction.channel.send({ content: "🎶 Configurando player..." });
-
-                        playerInstance = {
-                            player,
-                            connection,
-                            queue: [],
-                            message: initialMessage,
-                            lastSong: null
-                        };
-                        
-                        playerInstance.subscription = connection.subscribe(player);
-                        interaction.client.playerInstances.set(interaction.guildId, playerInstance);
-                    }
-
-                    playerInstance.queue.push(song);
-                    
-                    const addedToQueueEmbed = new EmbedBuilder()
-                        .setColor('#f5b041')
-                        .setTitle('🎶 Adicionado à Fila')
-                        .setDescription(`**${song.title}**`)
-                        .addFields({ name: 'Posição na fila', value: `${playerInstance.queue.length}` });
-                    
-                    if (song.thumbnailPath) {
-                        addedToQueueEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
-                    }
-
-                    await interaction.editReply({ 
-                        embeds: [addedToQueueEmbed],
-                        files: song.thumbnailPath ? [song.thumbnailPath] : []
+            if (!playerInstance) {
+                const player = createAudioPlayer()
+                    .on(AudioPlayerStatus.Idle, () => playNextInQueue(interaction.guildId, interaction.client))
+                    .on('error', (error) => {
+                        console.error(`Erro no player do guild ${interaction.guildId}:`, error);
+                        playNextInQueue(interaction.guildId, interaction.client);
                     });
 
-                    if (playerInstance.player.state.status === AudioPlayerStatus.Idle) {
-                        playNextInQueue(interaction.guildId, interaction.client);
-                    }
-                } catch (err) {
-                    console.error("Erro no processamento pós-download:", err);
-                    await interaction.editReply({ content: '❌ Falha ao processar o arquivo e gerar a thumbnail.' });
-                    fs.unlink(tempFilePath, () => {});
-                }
+                const connection = joinVoiceChannel({
+                    channelId: voiceChannel.id,
+                    guildId: interaction.guildId,
+                    adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+                });
+
+                const initialMessage = await interaction.channel.send({ content: "🎶 Configurando player..." });
+
+                playerInstance = {
+                    player,
+                    connection,
+                    queue: [],
+                    message: initialMessage,
+                    lastSong: null
+                };
+                
+                playerInstance.subscription = connection.subscribe(player);
+                interaction.client.playerInstances.set(interaction.guildId, playerInstance);
+            }
+
+            playerInstance.queue.push(song);
+            
+            const addedToQueueEmbed = new EmbedBuilder()
+                .setColor('#f5b041')
+                .setTitle('🎶 Adicionado à Fila')
+                .setDescription(`**${song.title}**`)
+                .addFields({ name: 'Posição na fila', value: `${playerInstance.queue.length}` });
+            
+            if (song.thumbnailPath) {
+                addedToQueueEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+            }
+
+            await interaction.editReply({ 
+                embeds: [addedToQueueEmbed],
+                files: song.thumbnailPath ? [song.thumbnailPath] : []
             });
 
-            fileStream.on('error', (err) => {
-                console.error("Erro ao salvar arquivo temporário:", err);
-                interaction.editReply("❌ Erro ao baixar ou salvar o arquivo.");
+            if (playerInstance.player.state.status === AudioPlayerStatus.Idle) {
+                playNextInQueue(interaction.guildId, interaction.client);
+            }
+        };
+
+        if (musica) {
+            const filePath = path.join(musicasPath, musica);
+            song = {
+                filePath: filePath,
+                thumbnailPath: null, // Local files won't have thumbnails for now
+                title: musica,
+                requestedBy: interaction.user,
+                isTemp: false // It's not a temporary file
+            };
+            await processSong(song);
+
+        } else if (attachment) {
+            const isVideo = attachment.contentType.startsWith('video/');
+
+            const tempDir = os.tmpdir();
+            const tempFilePath = path.join(tempDir, `gemini-bot-${Date.now()}-${attachment.name}`);
+            const fileStream = fs.createWriteStream(tempFilePath);
+            
+            https.get(attachment.url, (responseStream) => {
+                responseStream.pipe(fileStream);
+
+                fileStream.on('finish', async () => {
+                    try {
+                        const thumbnailPath = isVideo 
+                            ? await generateThumbnail(tempFilePath) 
+                            : null;
+
+                        song = {
+                            filePath: tempFilePath,
+                            thumbnailPath: thumbnailPath,
+                            title: attachment.name,
+                            requestedBy: interaction.user,
+                            isTemp: true // It's a temporary file
+                        };
+                        
+                        await processSong(song);
+
+                    } catch (err) {
+                        console.error("Erro no processamento pós-download:", err);
+                        await interaction.editReply({ content: '❌ Falha ao processar o arquivo e gerar a thumbnail.' });
+                        fs.unlink(tempFilePath, () => {});
+                    }
+                });
+
+                fileStream.on('error', (err) => {
+                    console.error("Erro ao salvar arquivo temporário:", err);
+                    interaction.editReply("❌ Erro ao baixar ou salvar o arquivo.");
+                });
+            }).on('error', (err) => {
+                console.error("Erro de download:", err);
+                interaction.editReply("❌ Erro crítico ao tentar baixar o arquivo de mídia.");
             });
-        }).on('error', (err) => {
-            console.error("Erro de download:", err);
-            interaction.editReply("❌ Erro crítico ao tentar baixar o arquivo de mídia.");
-        });
+        }
     }
 };
 
