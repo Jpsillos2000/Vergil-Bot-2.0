@@ -23,5 +23,5 @@ RUN npm ci
 # Copy the rest of the application code
 COPY . .
 
-# Use the npm docker-start script to deploy commands and then start the bot
-CMD ["npm", "run", "docker-start"]
+# Start the bot
+CMD ["node", "--env-file=.env", "index.js"]

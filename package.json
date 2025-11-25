@@ -7,7 +7,6 @@
     "start": "node --env-file=.env deleteCommands.js && node --env-file=.env deployCommands.js && nodemon --env-file=.env index.js",
     "deploy": "node --env-file=.env deployCommands.js",
     "deleta": "node --env-file=.env deleteCommands.js",
-    "docker-start": "node --env-file=.env deployCommands.js && node --env-file=.env index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
