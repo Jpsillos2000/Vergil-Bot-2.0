@@ -20,8 +20,5 @@ RUN npm ci
 # Copy the rest of the application code
 COPY . .
 
-# Make the entrypoint script executable
-RUN chmod +x entrypoint.sh
-
-# Use the entrypoint script to deploy commands and then start the bot
-ENTRYPOINT ["./entrypoint.sh"]
+# Use the npm docker-start script to deploy commands and then start the bot
+CMD ["npm", "run", "docker-start"]
