@@ -26,6 +26,19 @@ module.exports = {
                 .addStringOption(option => option.setName('end').setDescription('End time (e.g., 0:20 or 20)').setRequired(true))
         ),
 
+    async _getDuration(filePath) { // Renamed for clarity as an internal helper
+        return new Promise((resolve, reject) => {
+            const command = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`;
+            exec(command, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`ffprobe error: ${stderr}`);
+                    return reject(error);
+                }
+                resolve(parseFloat(stdout.trim()));
+            });
+        });
+    },
+
     async execute(interaction) {
         await interaction.deferReply();
 
@@ -82,7 +95,7 @@ module.exports = {
             await downloadPromise;
 
             // --- Duration Check ---
-            const duration = await getDuration(inputPath);
+            const duration = await this._getDuration(inputPath);
             const MAX_DURATION_SECONDS = 120; // 2 minutes
 
             if (duration > MAX_DURATION_SECONDS) {
