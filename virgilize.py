@@ -21,7 +21,6 @@ def calculate_bitrate(duration_in_seconds, target_size_in_mb=7.5):
 
     return f"{int(video_bitrate / 1000)}k"
 
-
 def virgilize_video(input_path, output_path, start_time, end_time):
     """
     Applies a "To be continued" meme effect to a video clip.
@@ -58,39 +57,26 @@ def virgilize_video(input_path, output_path, start_time, end_time):
         main_part = input_clip.subclip(0, duration - 3)
         last_3_seconds = input_clip.subclip(duration - 3, duration)
         
-        # --- 3. Background Removal and Green Screen ---
-        print("Applying background removal (this might take a while)...")
-        temp_clip_path = "temp_last_3.mp4"
-        last_3_seconds.write_videofile(temp_clip_path, codec="libx264", audio_codec="aac")
-
-        temp_rembg_output_path = "temp_rembg_output.mp4"
-        with open(temp_clip_path, 'rb') as i:
-            with open(temp_rembg_output_path, 'wb') as o:
-                o.write(remove(i.read()))
-        
-        bg_removed_clip = VideoFileClip(temp_rembg_output_path)
-
-        green_screen = ColorClip(size=target_resolution, color=(0, 255, 0), duration=bg_removed_clip.duration)
-        
-        green_screen_effect_clip = CompositeVideoClip([green_screen, bg_removed_clip.set_position("center")])
-        if last_3_seconds.audio:
-            green_screen_effect_clip = green_screen_effect_clip.set_audio(last_3_seconds.audio)
+        # --- 3. Prepare last_3_seconds for concatenation ---
+        # No background removal. `last_3_seconds` is used directly.
 
         # --- 4. Concatenate and Finalize ---
         print("Concatenating final video...")
-        final_clip = concatenate_videoclips([main_part, green_screen_effect_clip, vergil_clip])
+        final_clip = concatenate_videoclips([main_part, last_3_seconds, vergil_clip])
 
         # Calculate dynamic bitrate
         bitrate = calculate_bitrate(final_clip.duration)
         print(f"Calculated target bitrate: {bitrate}")
 
+        print(f"Writing video to: {output_path} with bitrate: {bitrate}")
         # Write the final video file
-        final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", temp_audiofile='temp-audio.m4a', remove_temp=True, bitrate=bitrate)
+        final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", temp_audiofile='temp-audio.m4a', remove_temp=True, bitrate=bitrate, verbose=True)
 
         print("Video processing complete!")
 
     except Exception as e:
         print(f"An error occurred: {e}", file=sys.stderr)
+        sys.exit(1)
     finally:
         # --- 5. Cleanup ---
         print("Cleaning up temporary files...")
@@ -101,7 +87,7 @@ def virgilize_video(input_path, output_path, start_time, end_time):
         if 'bg_removed_clip' in locals(): bg_removed_clip.close()
         
         # Safely remove temp files
-        for f in [temp_clip_path, temp_rembg_output_path, 'temp-audio.m4a']:
+        for f in ['temp-audio.m4a']:
              if f and os.path.exists(f):
                 os.remove(f)
 

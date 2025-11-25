@@ -90,7 +90,7 @@ module.exports = {
             pythonProcess.stdout.on('data', (data) => {
                 console.log(`[PYTHON_STDOUT] ${data}`);
                 // Update user with progress
-                interaction.editReply(`⚙️ Processing video... ${data}`).catch(()=>{});
+                interaction.editReply('⚙️ Processing video...').catch(()=>{});
             });
 
             pythonProcess.stderr.on('data', (data) => {
