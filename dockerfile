@@ -14,10 +14,14 @@ RUN apt-get update && apt-get install -y \
     automake \
     && rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
+# Install Node.js dependencies using npm ci for cleaner builds
+RUN npm ci
 
-RUN npm install
-
+# Copy the rest of the application code
 COPY . .
 
-CMD ["node" ,"--env-file=.env" ,"deleteCommands.js", "&&", "node" ,"--env-file=.env" ,"deployCommands.js", "&&", "node", "--env-file=.env" ,"index.js"]
+# Make the entrypoint script executable
+RUN chmod +x entrypoint.sh
+
+# Use the entrypoint script to deploy commands and then start the bot
+ENTRYPOINT ["./entrypoint.sh"]
