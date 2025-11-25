@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     automake \
     && rm -rf /var/lib/apt/lists/*
 
+COPY package.json ./
+COPY package-lock.json ./
+
 # Install Node.js dependencies using npm ci for cleaner builds
 RUN npm ci
 
