@@ -64,8 +64,14 @@ async function renderQueueView(interaction, playerInstance) {
 // This helper function renders the 'Now Playing' view
 async function renderNowPlayingView(interaction, playerInstance, isPaused = false) {
     const song = playerInstance.lastSong;
+    
+    // Determine the response method based on interaction state
+    const responseMethod = interaction.deferred || interaction.replied ? 'editReply' : 'update';
+
     if (!song) {
-        return interaction.update({ content: 'Nothing is playing right now.', embeds: [], components: [] });
+        // If nothing is playing, send an appropriate message
+        await interaction[responseMethod]({ content: 'Nothing is playing right now.', embeds: [], components: [] });
+        return;
     }
 
     const nowPlayingEmbed = new EmbedBuilder()
@@ -104,7 +110,7 @@ async function renderNowPlayingView(interaction, playerInstance, isPaused = fals
     }
     const row = new ActionRowBuilder().addComponents(components);
 
-    await interaction.update({ embeds: [nowPlayingEmbed], components: [row], files: files });
+    await interaction[responseMethod]({ embeds: [nowPlayingEmbed], components: [row], files: files });
 }
 
 
