@@ -12,8 +12,9 @@ const path = require('node:path');
 const https = require('node:https');
 const { spawn } = require('node:child_process');
 const ffmpeg = require('ffmpeg-static');
+const { YtDlp } = require('ytdlp-nodejs');
 
-const musicasPath = path.join(__dirname, '..', '..', 'music');
+const musicasPath = path.join(__dirname, '..', '..', 'midia');
 const musicasFiles = fs.readdirSync(musicasPath).filter(file => file.endsWith('.mp3') || file.endsWith('.mp4'));
 
 function generateThumbnail(videoPath) {
@@ -41,10 +42,12 @@ async function playNextInQueue(guildId, client) {
     const playerInstance = client.playerInstances.get(guildId);
     if (!playerInstance) return;
 
+    playerInstance.selectedSongIndex = -1;
+
     if (playerInstance.lastSong) {
-        if (playerInstance.lastSong.isTemp) {
+        if (playerInstance.lastSong.isTemp && playerInstance.lastSong.filePath) {
             fs.unlink(playerInstance.lastSong.filePath, () => {});
-            if (playerInstance.lastSong.thumbnailPath) {
+            if (playerInstance.lastSong.thumbnailPath && !playerInstance.lastSong.thumbnailPath.startsWith('http')) {
                 fs.unlink(playerInstance.lastSong.thumbnailPath, () => {});
             }
         }
@@ -61,32 +64,71 @@ async function playNextInQueue(guildId, client) {
     playerInstance.lastSong = song;
 
     try {
-        const resource = createAudioResource(song.filePath, { inputType: StreamType.Arbitrary });
+        let resource;
+        let files = [];
+
+        if (song.isStream) {
+            const ytdlpPath = path.join(__dirname, '..', '..', 'node_modules', 'ytdlp-nodejs', 'bin', 'yt-dlp');
+            const args = [
+                song.link,
+                '-o', '-',
+                '-f', 'bestaudio[acodec=opus]/bestaudio',
+                '--quiet',
+                '--no-check-certificate',
+                '--no-cache-dir',
+                '--no-mtime',
+                '--extractor-args', 'youtube:player_client=default'
+            ];
+
+            const process = spawn(ytdlpPath, args);
+            resource = createAudioResource(process.stdout, { inputType: StreamType.Arbitrary });
+
+            process.stderr.on('data', (data) => {
+                console.error(`[YTDLP_STDERR] ${data}`);
+            });
+
+            process.on('error', (error) => {
+                console.error(`[YTDLP_ERROR] ${error}`);
+            });
+
+        } else {
+            resource = createAudioResource(song.filePath, { inputType: StreamType.Arbitrary });
+            if (song.thumbnailPath) {
+                files.push(song.thumbnailPath);
+            }
+        }
+
         playerInstance.player.play(resource);
 
         const nowPlayingEmbed = new EmbedBuilder()
             .setColor('#0099ff')
             .setTitle('▶️ Now Playing')
             .setDescription(`**${song.title}**`)
-            .addFields({ name: 'Requested by', value: `<@${song.requestedBy.id}>`, inline: true })
-            .setTimestamp()
-            .setFooter({ text: `Queue: ${playerInstance.queue.length} song(s) remaining` });
+            .addFields(
+                { name: 'Requested by', value: `<@${song.requestedBy.id}>`, inline: true },
+                { name: 'Queue', value: `${playerInstance.queue.length} song(s) remaining`, inline: true }
+            )
+            .setTimestamp();
 
         if (song.thumbnailPath) {
-            nowPlayingEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+            if (song.thumbnailPath.startsWith('http')) {
+                nowPlayingEmbed.setThumbnail(song.thumbnailPath);
+            } else {
+                nowPlayingEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+            }
         }
         
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause').setLabel('Pause').setStyle(ButtonStyle.Primary).setEmoji('⏸️'),
-            new ButtonBuilder().setCustomId('skip').setLabel('Skip').setStyle(ButtonStyle.Secondary).setEmoji('⏭️'),
-            new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger).setEmoji('⏹️')
+            new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger).setEmoji('⏹️'),
+            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜')
         );
 
         await playerInstance.message.edit({ 
             content: '',
             embeds: [nowPlayingEmbed], 
             components: [row],
-            files: song.thumbnailPath ? [song.thumbnailPath] : []
+            files: files
         }).catch(console.error);
 
     } catch (error) {
@@ -100,7 +142,7 @@ async function playNextInQueue(guildId, client) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Plays or adds a file to the playback queue.')
+        .setDescription('Plays a song from a file, a link, or the pre-defined list.')
         .addAttachmentOption(option =>
             option.setName('file')
                 .setDescription('The media file (mp3, mp4) you want to play.')
@@ -109,13 +151,18 @@ module.exports = {
             option.setName('music')
                 .setDescription('Choose a song from the list.')
                 .setRequired(false)
-                .addChoices(...musicasFiles.map(file => ({ name: file, value: file })))),
+                .addChoices(...musicasFiles.map(file => ({ name: file, value: file }))))
+        .addStringOption(option =>
+            option.setName('link')
+                .setDescription('The YouTube/SoundCloud/etc. link to play.')
+                .setRequired(false)),
 
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: true });
 
         const attachment = interaction.options.getAttachment('file');
         const musica = interaction.options.getString('music');
+        const link = interaction.options.getString('link');
         const voiceChannel = interaction.member.voice.channel;
 
         if (!voiceChannel) {
@@ -127,14 +174,14 @@ module.exports = {
             return interaction.editReply('❌ I need permission to join and speak in your voice channel!');
         }
 
-        if (!attachment && !musica) {
-            return interaction.editReply('❌ You need to provide a file or choose a song!');
+        if (!attachment && !musica && !link) {
+            return interaction.editReply('❌ You need to provide a file, choose a song, or provide a link!');
         }
 
         let song = {};
-
         const processSong = async (song) => {
             let playerInstance = interaction.client.playerInstances.get(interaction.guildId);
+            const isPlaying = playerInstance && playerInstance.player.state.status !== AudioPlayerStatus.Idle;
 
             if (!playerInstance) {
                 const player = createAudioPlayer()
@@ -157,7 +204,8 @@ module.exports = {
                     connection,
                     queue: [],
                     message: initialMessage,
-                    lastSong: null
+                    lastSong: null,
+                    selectedSongIndex: -1 // -1 indicates not in queue view
                 };
                 
                 playerInstance.subscription = connection.subscribe(player);
@@ -166,6 +214,7 @@ module.exports = {
 
             playerInstance.queue.push(song);
             
+            // Ephemeral confirmation for the user who added the song
             const addedToQueueEmbed = new EmbedBuilder()
                 .setColor('#f5b041')
                 .setTitle('🎶 Added to Queue')
@@ -173,13 +222,40 @@ module.exports = {
                 .addFields({ name: 'Position in queue', value: `${playerInstance.queue.length}` });
             
             if (song.thumbnailPath) {
-                addedToQueueEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+                if (song.thumbnailPath.startsWith('http')) {
+                    addedToQueueEmbed.setThumbnail(song.thumbnailPath);
+                } else {
+                    addedToQueueEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+                }
             }
 
             await interaction.editReply({ 
                 embeds: [addedToQueueEmbed],
-                files: song.thumbnailPath ? [song.thumbnailPath] : []
+                files: [] // No thumbnail in ephemeral message
             });
+
+            // Delete the ephemeral reply after 5 seconds
+            setTimeout(() => {
+                interaction.deleteReply().catch(error => {
+                    // Ignore 'Unknown Message' errors
+                    if (error.code === 10008) return;
+                    console.error('Failed to delete ephemeral reply:', error);
+                });
+            }, 5000);
+
+            // If a song is already playing, update the public player message
+            if (isPlaying) {
+                const currentMessage = playerInstance.message;
+                if (currentMessage && currentMessage.embeds.length > 0) {
+                    const currentEmbed = currentMessage.embeds[0];
+                    const newEmbed = new EmbedBuilder(currentEmbed.data)
+                        .spliceFields(-1, 1, { name: 'Queue', value: `${playerInstance.queue.length} song(s) remaining` })
+                        .addFields({ name: '⬆️ Added to Queue', value: song.title.substring(0, 1024) });
+                        
+                    await currentMessage.edit({ embeds: [newEmbed] });
+                }
+            }
+
 
             if (playerInstance.player.state.status === AudioPlayerStatus.Idle) {
                 playNextInQueue(interaction.guildId, interaction.client);
@@ -196,6 +272,31 @@ module.exports = {
                 isTemp: false
             };
             await processSong(song);
+
+        } else if (link) {
+            try {
+                await interaction.editReply({ content: `📥 Fetching metadata for... **${link}**` });
+                
+                const ytdlp = new YtDlp();
+                const metadata = await ytdlp.getInfoAsync(link);
+                const title = metadata.title || 'Unknown Title';
+                const thumbnail = metadata.thumbnail || null;
+
+                song = {
+                    link: link,
+                    title: title,
+                    thumbnailPath: thumbnail,
+                    requestedBy: interaction.user,
+                    isStream: true,
+                    isTemp: false
+                };
+                
+                await processSong(song);
+
+            } catch (err) {
+                console.error("Error fetching metadata for link:", err);
+                await interaction.editReply({ content: '❌ Failed to fetch metadata. The link might be invalid or unsupported.' });
+            }
 
         } else if (attachment) {
             if (!attachment.name) {
