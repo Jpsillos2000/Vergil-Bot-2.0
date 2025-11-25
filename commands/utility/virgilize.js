@@ -110,7 +110,7 @@ module.exports = {
 
             await interaction.editReply('⚙️ Processing video... This might take a while.');
 
-            const pythonPath = '/home/kali/Vergil-Bot-2.0-Linux/.venv/bin/python';
+            const pythonPath = 'python3';
             const scriptPath = '/home/kali/Vergil-Bot-2.0-Linux/virgilize.py';
             
             const pythonProcess = spawn(pythonPath, [scriptPath, inputPath, outputPath, start, end]);
