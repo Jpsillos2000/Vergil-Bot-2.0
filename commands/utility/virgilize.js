@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { spawn } = require('node:child_process');
+const { spawn, exec } = require('node:child_process');
 const path = require('node:path');
 const os = require('node:os');
 const https = require('node:https');
@@ -80,6 +80,21 @@ module.exports = {
 
         try {
             await downloadPromise;
+
+            // --- Duration Check ---
+            const duration = await getDuration(inputPath);
+            const MAX_DURATION_SECONDS = 120; // 2 minutes
+
+            if (duration > MAX_DURATION_SECONDS) {
+                await interaction.editReply(`❌ Video is too long! Max duration is ${MAX_DURATION_SECONDS / 60} minutes.`);
+                fs.unlink(inputPath, () => {}); // Clean up the downloaded file
+                if (fs.existsSync(outputPath)) { // Check before unlinking
+                    fs.unlink(outputPath, () => {}); // Clean up the (potentially empty) output path
+                }
+                return;
+            }
+            // --- End Duration Check ---
+
             await interaction.editReply('⚙️ Processing video... This might take a while.');
 
             const pythonPath = '/home/kali/Vergil-Bot-2.0-Linux/.venv/bin/python';
@@ -121,21 +136,27 @@ module.exports = {
                 }
                 // Cleanup temp files
                 fs.unlink(inputPath, () => {});
-                fs.unlink(outputPath, () => {});
+                if (fs.existsSync(outputPath)) {
+                    fs.unlink(outputPath, () => {});
+                }
             });
 
              pythonProcess.on('error', (err) => {
                 console.error('Failed to start Python process.', err);
                 interaction.editReply('❌ An error occurred while trying to start the video processor.');
                 fs.unlink(inputPath, () => {});
-                fs.unlink(outputPath, () => {});
+                if (fs.existsSync(outputPath)) {
+                    fs.unlink(outputPath, () => {});
+                }
             });
 
         } catch (error) {
             console.error(error);
             await interaction.editReply('❌ Failed to download the video.');
             fs.unlink(inputPath, () => {});
-            fs.unlink(outputPath, () => {});
+            if (fs.existsSync(outputPath)) {
+                fs.unlink(outputPath, () => {});
+            }
         }
     },
 };
