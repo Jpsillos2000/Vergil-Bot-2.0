@@ -14,7 +14,7 @@ const { spawn } = require('node:child_process');
 const ffmpeg = require('ffmpeg-static');
 const { YtDlp } = require('ytdlp-nodejs');
 
-const musicasPath = path.join(__dirname, '..', '..', 'midia');
+const musicasPath = path.join(__dirname, '..', '..', '..', 'assets', 'video');
 const musicasFiles = fs.readdirSync(musicasPath).filter(file => file.endsWith('.mp3') || file.endsWith('.mp4'));
 
 function generateThumbnail(videoPath) {
