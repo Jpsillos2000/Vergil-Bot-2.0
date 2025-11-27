@@ -68,7 +68,7 @@ async function playNextInQueue(guildId, client) {
         let files = [];
 
         if (song.isStream) {
-            const ytdlpPath = path.join(__dirname, '..', '..', 'node_modules', 'ytdlp-nodejs', 'bin', 'yt-dlp');
+            const ytdlpPath = path.join(__dirname, '..', '..', '..', 'node_modules', 'ytdlp-nodejs', 'bin', 'yt-dlp');
             const args = [
                 song.link,
                 '-o', '-',
