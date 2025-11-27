@@ -142,6 +142,7 @@ module.exports = {
 			const playerInstance = interaction.client.playerInstances.get(interaction.guildId);
 			if (!playerInstance) {
 				await interaction.update({ content: "❌ The music session has already ended.", components: [] });
+                setTimeout(() => interaction.message.delete().catch(() => {}), 5000);
 				return;
 			}
 			const { player } = playerInstance;

@@ -171,16 +171,22 @@ module.exports = {
         const voiceChannel = interaction.member.voice.channel;
 
         if (!voiceChannel) {
-            return interaction.editReply('❌ You need to be in a voice channel to use this command!');
+            await interaction.editReply('❌ You need to be in a voice channel to use this command!');
+            setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+            return;
         }
 
         const permissions = voiceChannel.permissionsFor(interaction.client.user);
         if (!permissions.has(PermissionsBitField.Flags.Connect) || !permissions.has(PermissionsBitField.Flags.Speak)) {
-            return interaction.editReply('❌ I need permission to join and speak in your voice channel!');
+            await interaction.editReply('❌ I need permission to join and speak in your voice channel!');
+            setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+            return;
         }
 
         if (!attachment && !musica && !link) {
-            return interaction.editReply('❌ You need to provide a file, choose a song, or provide a link!');
+            await interaction.editReply('❌ You need to provide a file, choose a song, or provide a link!');
+            setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+            return;
         }
 
         let song = {};
@@ -338,12 +344,15 @@ module.exports = {
             } catch (err) {
                 console.error("Error fetching metadata for link:", err);
                 await interaction.editReply({ content: '❌ Failed to fetch metadata. The link might be invalid or unsupported.' });
+                setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
             }
 
         } else if (attachment) {
             if (!attachment.name) {
                 console.error("Attachment received without a name:", attachment);
-                return interaction.editReply({ content: '❌ An error occurred: the attachment does not have a valid name.' });
+                await interaction.editReply({ content: '❌ An error occurred: the attachment does not have a valid name.' });
+                setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+                return;
             }
             const isVideo = attachment.contentType.startsWith('video/');
 
@@ -373,6 +382,7 @@ module.exports = {
                     } catch (err) {
                         console.error("Error in post-download processing:", err);
                         await interaction.editReply({ content: '❌ Failed to process the file and generate the thumbnail.' });
+                        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
                         fs.unlink(tempFilePath, () => {});
                     }
                 });
@@ -380,10 +390,12 @@ module.exports = {
                 fileStream.on('error', (err) => {
                     console.error("Error saving temporary file:", err);
                     interaction.editReply("❌ Error downloading or saving the file.");
+                    setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
                 });
             }).on('error', (err) => {
                 console.error("Download error:", err);
                 interaction.editReply("❌ Critical error trying to download the media file.");
+                setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
             });
         }
     }
