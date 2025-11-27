@@ -42,7 +42,7 @@ def virgilize_video(input_path, output_path, start_time, end_time):
         actual_end_time = min(end_time, full_clip.duration - 0.05)
         input_clip = full_clip.subclip(start_time, actual_end_time)
         
-        vergil_clip = VideoFileClip("./assets/video/vergil_src.mp4")
+        vergil_clip = VideoFileClip("./assets/templates/vergil_src.mp4")
 
         # --- 2. Prepare Clips ---
         # Standardize resolution to match the vergil clip
