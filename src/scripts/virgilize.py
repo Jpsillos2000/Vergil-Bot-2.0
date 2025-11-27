@@ -37,7 +37,11 @@ def virgilize_video(input_path, output_path, start_time, end_time):
     try:
         # --- 1. Load Clips ---
         print("Loading video clips...")
-        input_clip = VideoFileClip(input_path).subclip(start_time, end_time)
+        full_clip = VideoFileClip(input_path)
+        # Ensure we don't exceed the clip's actual duration
+        actual_end_time = min(end_time, full_clip.duration - 0.05)
+        input_clip = full_clip.subclip(start_time, actual_end_time)
+        
         vergil_clip = VideoFileClip("./assets/video/vergil_src.mp4")
 
         # --- 2. Prepare Clips ---
