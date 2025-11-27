@@ -2,11 +2,11 @@
   "name": "vergil-bot-2.0",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node --env-file=.env deleteCommands.js && node --env-file=.env deployCommands.js && nodemon --env-file=.env index.js",
-    "deploy": "node --env-file=.env deployCommands.js",
-    "deleta": "node --env-file=.env deleteCommands.js",
+    "start": "node --env-file=.env src/deleteCommands.js && node --env-file=.env src/deployCommands.js && nodemon --env-file=.env src/index.js",
+    "deploy": "node --env-file=.env src/deployCommands.js",
+    "deleta": "node --env-file=.env src/deleteCommands.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

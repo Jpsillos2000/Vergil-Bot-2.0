@@ -38,7 +38,7 @@ def virgilize_video(input_path, output_path, start_time, end_time):
         # --- 1. Load Clips ---
         print("Loading video clips...")
         input_clip = VideoFileClip(input_path).subclip(start_time, end_time)
-        vergil_clip = VideoFileClip("./assets/vergil_src.mp4")
+        vergil_clip = VideoFileClip("./assets/video/vergil_src.mp4")
 
         # --- 2. Prepare Clips ---
         # Standardize resolution to match the vergil clip
