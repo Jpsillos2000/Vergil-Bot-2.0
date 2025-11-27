@@ -77,11 +77,15 @@ async function playNextInQueue(guildId, client) {
                 '--no-check-certificate',
                 '--no-cache-dir',
                 '--no-mtime',
-                '--extractor-args', 'youtube:player_client=default'
+                '--extractor-args', 'youtube:player_client=default',
+                '--buffer-size', '16K' 
             ];
 
             const process = spawn(ytdlpPath, args);
-            resource = createAudioResource(process.stdout, { inputType: StreamType.Arbitrary });
+            resource = createAudioResource(process.stdout, { 
+                inputType: StreamType.Arbitrary,
+                inlineVolume: true 
+            });
 
             process.stderr.on('data', (data) => {
                 console.error(`[YTDLP_STDERR] ${data}`);
@@ -121,7 +125,8 @@ async function playNextInQueue(guildId, client) {
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause').setLabel('Pause').setStyle(ButtonStyle.Primary).setEmoji('⏸️'),
             new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger).setEmoji('⏹️'),
-            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜')
+            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜'),
+            new ButtonBuilder().setCustomId('clear_queue').setLabel('Clear').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
         );
 
         await playerInstance.message.edit({ 
