@@ -165,11 +165,12 @@ module.exports = {
 					playerInstance.queue = [];
 					player.stop();
 					const stopMessage = await interaction.followUp({content: "⏹️ Queue cleared and playback stopped.", ephemeral: true});
-                    setTimeout(() => {
-                        stopMessage.delete().catch(error => {
-                            if (error.code === 10008) return;
-                            console.error('Failed to delete ephemeral message:', error);
-                        });
+                    setTimeout(async () => {
+                        try {
+                            await stopMessage.delete();
+                        } catch (error) {
+                            if (error.code !== 10008) console.error('Failed to delete stop message:', error);
+                        }
                     }, 5000);
 					break;
 
@@ -179,8 +180,12 @@ module.exports = {
                     playerInstance.queue = [];
                     
                     const clearMessage = await interaction.followUp({content: `🗑️ Cleared **${queueLength}** songs from the queue.`, ephemeral: true});
-                    setTimeout(() => {
-                        clearMessage.delete().catch(() => {});
+                    setTimeout(async () => {
+                        try {
+                            await clearMessage.delete();
+                        } catch (error) {
+                            if (error.code !== 10008) console.error('Failed to delete clear message:', error);
+                        }
                     }, 5000);
                     
                     // Refresh the view to show the empty queue status
@@ -214,11 +219,12 @@ module.exports = {
                         player.stop(); // This will trigger playNextInQueue to play the selected song
                         player.unpause(); // Ensure it resumes if it was paused
                         const playMessage = await interaction.followUp({ content: `⏭️ Skipping to **${selectedSong.title}**`, ephemeral: true });
-                        setTimeout(() => {
-                            playMessage.delete().catch(error => {
-                                if (error.code === 10008) return;
-                                console.error('Failed to delete ephemeral message:', error);
-                            });
+                        setTimeout(async () => {
+                            try {
+                                await playMessage.delete();
+                            } catch (error) {
+                                if (error.code !== 10008) console.error('Failed to delete skipping message:', error);
+                            }
                         }, 5000);
                     }
                     break;
