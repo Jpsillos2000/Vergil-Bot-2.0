@@ -1,0 +1,7 @@
+moviepy==1.0.3
+imageio==2.31.1
+imageio-ffmpeg
+rembg
+numpy
+Pillow==9.5.0
+onnxruntime

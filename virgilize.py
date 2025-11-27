@@ -1,5 +1,6 @@
 import sys
 import os
+import traceback
 from moviepy.editor import *
 from rembg import remove
 import numpy as np
@@ -49,7 +50,7 @@ def virgilize_video(input_path, output_path, start_time, end_time):
         duration = input_clip.duration
         if duration <= 3:
             print("Clip is too short for the effect.")
-            final_clip = concatenate_videoclips([input_clip, vergil_clip])
+            final_clip = concatenate_videoclips([input_clip, vergil_clip], method="compose")
             bitrate = calculate_bitrate(final_clip.duration)
             final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", bitrate=bitrate)
             return
@@ -62,7 +63,7 @@ def virgilize_video(input_path, output_path, start_time, end_time):
 
         # --- 4. Concatenate and Finalize ---
         print("Concatenating final video...")
-        final_clip = concatenate_videoclips([main_part, last_3_seconds, vergil_clip])
+        final_clip = concatenate_videoclips([main_part, last_3_seconds, vergil_clip], method="compose")
 
         # Calculate dynamic bitrate
         bitrate = calculate_bitrate(final_clip.duration)
@@ -76,6 +77,7 @@ def virgilize_video(input_path, output_path, start_time, end_time):
 
     except Exception as e:
         print(f"An error occurred: {e}", file=sys.stderr)
+        traceback.print_exc()
         sys.exit(1)
     finally:
         # --- 5. Cleanup ---
@@ -100,10 +102,14 @@ if __name__ == "__main__":
     output_file = sys.argv[2]
     # Convert time from string (e.g., "M:SS" or "SS") to seconds
     def time_to_seconds(t):
-        if ':' in t:
-            minutes, seconds = t.split(':')
-            return int(minutes) * 60 + float(seconds)
-        return float(t)
+        parts = t.split(':')
+        if len(parts) == 1:
+            return float(parts[0])
+        elif len(parts) == 2:
+            return int(parts[0]) * 60 + float(parts[1])
+        elif len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        return 0.0
 
     start = time_to_seconds(sys.argv[3])
     end = time_to_seconds(sys.argv[4])
