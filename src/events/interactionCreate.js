@@ -99,13 +99,15 @@ async function renderNowPlayingView(interaction, playerInstance, isPaused = fals
         components.push(
             new ButtonBuilder().setCustomId('resume').setLabel('Resume').setStyle(ButtonStyle.Success).setEmoji('▶️'),
             new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger).setEmoji('⏹️'),
-            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜')
+            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜'),
+            new ButtonBuilder().setCustomId('clear_queue').setLabel('Clear').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
         );
     } else {
         components.push(
             new ButtonBuilder().setCustomId('pause').setLabel('Pause').setStyle(ButtonStyle.Primary).setEmoji('⏸️'),
             new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger).setEmoji('⏹️'),
-            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜')
+            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜'),
+            new ButtonBuilder().setCustomId('clear_queue').setLabel('Clear').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
         );
     }
     const row = new ActionRowBuilder().addComponents(components);
@@ -140,6 +142,7 @@ module.exports = {
 			const playerInstance = interaction.client.playerInstances.get(interaction.guildId);
 			if (!playerInstance) {
 				await interaction.update({ content: "❌ The music session has already ended.", components: [] });
+                setTimeout(() => interaction.message.delete().catch(() => {}), 5000);
 				return;
 			}
 			const { player } = playerInstance;
@@ -162,13 +165,32 @@ module.exports = {
 					playerInstance.queue = [];
 					player.stop();
 					const stopMessage = await interaction.followUp({content: "⏹️ Queue cleared and playback stopped.", ephemeral: true});
-                    setTimeout(() => {
-                        stopMessage.delete().catch(error => {
-                            if (error.code === 10008) return;
-                            console.error('Failed to delete ephemeral message:', error);
-                        });
+                    setTimeout(async () => {
+                        try {
+                            await stopMessage.delete();
+                        } catch (error) {
+                            if (error.code !== 10008) console.error('Failed to delete stop message:', error);
+                        }
                     }, 5000);
 					break;
+
+                case 'clear_queue':
+                    await interaction.deferUpdate();
+                    const queueLength = playerInstance.queue.length;
+                    playerInstance.queue = [];
+                    
+                    const clearMessage = await interaction.followUp({content: `🗑️ Cleared **${queueLength}** songs from the queue.`, ephemeral: true});
+                    setTimeout(async () => {
+                        try {
+                            await clearMessage.delete();
+                        } catch (error) {
+                            if (error.code !== 10008) console.error('Failed to delete clear message:', error);
+                        }
+                    }, 5000);
+                    
+                    // Refresh the view to show the empty queue status
+                    await renderNowPlayingView(interaction, playerInstance, player.state.status === 'paused');
+                    break;
 
 				case 'view_queue':
                     playerInstance.selectedSongIndex = 0;
@@ -195,12 +217,14 @@ module.exports = {
                     if (selectedSong) {
                         playerInstance.queue.unshift(selectedSong);
                         player.stop(); // This will trigger playNextInQueue to play the selected song
+                        player.unpause(); // Ensure it resumes if it was paused
                         const playMessage = await interaction.followUp({ content: `⏭️ Skipping to **${selectedSong.title}**`, ephemeral: true });
-                        setTimeout(() => {
-                            playMessage.delete().catch(error => {
-                                if (error.code === 10008) return;
-                                console.error('Failed to delete ephemeral message:', error);
-                            });
+                        setTimeout(async () => {
+                            try {
+                                await playMessage.delete();
+                            } catch (error) {
+                                if (error.code !== 10008) console.error('Failed to delete skipping message:', error);
+                            }
                         }, 5000);
                     }
                     break;

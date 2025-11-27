@@ -77,11 +77,15 @@ async function playNextInQueue(guildId, client) {
                 '--no-check-certificate',
                 '--no-cache-dir',
                 '--no-mtime',
-                '--extractor-args', 'youtube:player_client=default'
+                '--extractor-args', 'youtube:player_client=default',
+                '--buffer-size', '16K' 
             ];
 
             const process = spawn(ytdlpPath, args);
-            resource = createAudioResource(process.stdout, { inputType: StreamType.Arbitrary });
+            resource = createAudioResource(process.stdout, { 
+                inputType: StreamType.Arbitrary,
+                inlineVolume: true 
+            });
 
             process.stderr.on('data', (data) => {
                 console.error(`[YTDLP_STDERR] ${data}`);
@@ -121,7 +125,8 @@ async function playNextInQueue(guildId, client) {
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause').setLabel('Pause').setStyle(ButtonStyle.Primary).setEmoji('⏸️'),
             new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger).setEmoji('⏹️'),
-            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜')
+            new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜'),
+            new ButtonBuilder().setCustomId('clear_queue').setLabel('Clear').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
         );
 
         await playerInstance.message.edit({ 
@@ -166,20 +171,26 @@ module.exports = {
         const voiceChannel = interaction.member.voice.channel;
 
         if (!voiceChannel) {
-            return interaction.editReply('❌ You need to be in a voice channel to use this command!');
+            await interaction.editReply('❌ You need to be in a voice channel to use this command!');
+            setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+            return;
         }
 
         const permissions = voiceChannel.permissionsFor(interaction.client.user);
         if (!permissions.has(PermissionsBitField.Flags.Connect) || !permissions.has(PermissionsBitField.Flags.Speak)) {
-            return interaction.editReply('❌ I need permission to join and speak in your voice channel!');
+            await interaction.editReply('❌ I need permission to join and speak in your voice channel!');
+            setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+            return;
         }
 
         if (!attachment && !musica && !link) {
-            return interaction.editReply('❌ You need to provide a file, choose a song, or provide a link!');
+            await interaction.editReply('❌ You need to provide a file, choose a song, or provide a link!');
+            setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+            return;
         }
 
         let song = {};
-        const processSong = async (song) => {
+        const processSong = async (song, suppressReply = false) => {
             let playerInstance = interaction.client.playerInstances.get(interaction.guildId);
             const isPlaying = playerInstance && playerInstance.player.state.status !== AudioPlayerStatus.Idle;
 
@@ -214,34 +225,37 @@ module.exports = {
 
             playerInstance.queue.push(song);
             
-            // Ephemeral confirmation for the user who added the song
-            const addedToQueueEmbed = new EmbedBuilder()
-                .setColor('#f5b041')
-                .setTitle('🎶 Added to Queue')
-                .setDescription(`**${song.title}**`)
-                .addFields({ name: 'Position in queue', value: `${playerInstance.queue.length}` });
-            
-            if (song.thumbnailPath) {
-                if (song.thumbnailPath.startsWith('http')) {
-                    addedToQueueEmbed.setThumbnail(song.thumbnailPath);
-                } else {
-                    addedToQueueEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+            if (!suppressReply) {
+                // Ephemeral confirmation for the user who added the song
+                const addedToQueueEmbed = new EmbedBuilder()
+                    .setColor('#f5b041')
+                    .setTitle('🎶 Added to Queue')
+                    .setDescription(`**${song.title}**`)
+                    .addFields({ name: 'Position in queue', value: `${playerInstance.queue.length}` });
+                
+                if (song.thumbnailPath) {
+                    if (song.thumbnailPath.startsWith('http')) {
+                        addedToQueueEmbed.setThumbnail(song.thumbnailPath);
+                    } else {
+                        addedToQueueEmbed.setThumbnail(`attachment://${path.basename(song.thumbnailPath)}`);
+                    }
                 }
-            }
 
-            await interaction.editReply({ 
-                embeds: [addedToQueueEmbed],
-                files: [] // No thumbnail in ephemeral message
-            });
-
-            // Delete the ephemeral reply after 5 seconds
-            setTimeout(() => {
-                interaction.deleteReply().catch(error => {
-                    // Ignore 'Unknown Message' errors
-                    if (error.code === 10008) return;
-                    console.error('Failed to delete ephemeral reply:', error);
+                await interaction.editReply({ 
+                    content: '',
+                    embeds: [addedToQueueEmbed],
+                    files: [] // No thumbnail in ephemeral message
                 });
-            }, 5000);
+
+                // Delete the ephemeral reply after 5 seconds
+                setTimeout(() => {
+                    interaction.deleteReply().catch(error => {
+                        // Ignore 'Unknown Message' errors
+                        if (error.code === 10008) return;
+                        console.error('Failed to delete ephemeral reply:', error);
+                    });
+                }, 5000);
+            }
 
             // If a song is already playing, update the public player message
             if (isPlaying) {
@@ -252,7 +266,7 @@ module.exports = {
                         .spliceFields(-1, 1, { name: 'Queue', value: `${playerInstance.queue.length} song(s) remaining` })
                         .addFields({ name: '⬆️ Added to Queue', value: song.title.substring(0, 1024) });
                         
-                    await currentMessage.edit({ embeds: [newEmbed] });
+                    await currentMessage.edit({ embeds: [newEmbed] }).catch(console.error);
                 }
             }
 
@@ -279,29 +293,66 @@ module.exports = {
                 
                 const ytdlp = new YtDlp();
                 const metadata = await ytdlp.getInfoAsync(link);
-                const title = metadata.title || 'Unknown Title';
-                const thumbnail = metadata.thumbnail || null;
 
-                song = {
-                    link: link,
-                    title: title,
-                    thumbnailPath: thumbnail,
-                    requestedBy: interaction.user,
-                    isStream: true,
-                    isTemp: false
-                };
-                
-                await processSong(song);
+                if (metadata._type === 'playlist' || (metadata.entries && metadata.entries.length > 0)) {
+                    const playlistTitle = metadata.title || 'Unknown Playlist';
+                    const entries = metadata.entries;
+                    
+                    await interaction.editReply({ content: `✅ Found playlist **${playlistTitle}** with ${entries.length} songs. Adding to queue...` });
+
+                    for (const entry of entries) {
+                        // Some entries might be missing URL if flat_playlist is used, but standard info usually has it
+                        const entryUrl = entry.webpage_url || entry.url || link; 
+                        const entryTitle = entry.title || 'Unknown Title';
+                        
+                        const playlistSong = {
+                            link: entryUrl,
+                            title: entryTitle,
+                            thumbnailPath: entry.thumbnail || null,
+                            requestedBy: interaction.user,
+                            isStream: true,
+                            isTemp: false
+                        };
+                        await processSong(playlistSong, true);
+                    }
+
+                    await interaction.editReply({ 
+                        content: `✅ Added **${entries.length}** songs from **${playlistTitle}** to the queue!`,
+                        embeds: [] 
+                    });
+
+                    setTimeout(() => {
+                        interaction.deleteReply().catch(() => {});
+                    }, 5000);
+
+                } else {
+                    const title = metadata.title || 'Unknown Title';
+                    const thumbnail = metadata.thumbnail || null;
+
+                    song = {
+                        link: link,
+                        title: title,
+                        thumbnailPath: thumbnail,
+                        requestedBy: interaction.user,
+                        isStream: true,
+                        isTemp: false
+                    };
+                    
+                    await processSong(song);
+                }
 
             } catch (err) {
                 console.error("Error fetching metadata for link:", err);
                 await interaction.editReply({ content: '❌ Failed to fetch metadata. The link might be invalid or unsupported.' });
+                setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
             }
 
         } else if (attachment) {
             if (!attachment.name) {
                 console.error("Attachment received without a name:", attachment);
-                return interaction.editReply({ content: '❌ An error occurred: the attachment does not have a valid name.' });
+                await interaction.editReply({ content: '❌ An error occurred: the attachment does not have a valid name.' });
+                setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+                return;
             }
             const isVideo = attachment.contentType.startsWith('video/');
 
@@ -331,6 +382,7 @@ module.exports = {
                     } catch (err) {
                         console.error("Error in post-download processing:", err);
                         await interaction.editReply({ content: '❌ Failed to process the file and generate the thumbnail.' });
+                        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
                         fs.unlink(tempFilePath, () => {});
                     }
                 });
@@ -338,10 +390,12 @@ module.exports = {
                 fileStream.on('error', (err) => {
                     console.error("Error saving temporary file:", err);
                     interaction.editReply("❌ Error downloading or saving the file.");
+                    setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
                 });
             }).on('error', (err) => {
                 console.error("Download error:", err);
                 interaction.editReply("❌ Critical error trying to download the media file.");
+                setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
             });
         }
     }
