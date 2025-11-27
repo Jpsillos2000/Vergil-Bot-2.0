@@ -30,4 +30,4 @@ RUN npm ci
 COPY . .
 
 # Start the bot
-CMD ["node", "--env-file=.env", "index.js"]
+CMD ["sh", "-c", "node --env-file=.env src/deployCommands.js && node --env-file=.env src/index.js"]

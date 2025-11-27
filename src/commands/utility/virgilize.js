@@ -84,7 +84,7 @@ module.exports = {
             const endSeconds = parseTimeToSeconds(endStr);
 
             downloadPromise = new Promise((resolve, reject) => {
-                const ytdlpPath = path.join(__dirname, '..', '..', 'node_modules', 'ytdlp-nodejs', 'bin', 'yt-dlp');
+                const ytdlpPath = path.join(__dirname, '..', '..', '..', 'node_modules', 'ytdlp-nodejs', 'bin', 'yt-dlp');
                 const ytdlpProcess = spawn(ytdlpPath, [
                     link,
                     '-o', inputPath,
@@ -190,7 +190,7 @@ module.exports = {
             await interaction.editReply({ embeds: [createStatusEmbed('⚙️ Processing video... This might take a while.')] });
 
             const pythonPath = '/usr/src/app/.venv_python/bin/python';
-            const scriptPath = path.join(process.cwd(), 'virgilize.py');
+            const scriptPath = path.join(process.cwd(), 'src', 'scripts', 'virgilize.py');
             
             const pythonProcess = spawn(pythonPath, [scriptPath, inputPath, outputPath, pythonStart, pythonEnd]);
 
