@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const Guild = require('../../models/Guild');
+const path = require('node:path');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -73,24 +74,67 @@ module.exports = {
                 });
             }
 
-            const existingIndex = guildData.birthdays.findIndex(b => b.userId === user.id);
+            let personIndex = guildData.birthdays.findIndex(b => b.userId === user.id);
+            let isNew = false;
             
-            if (existingIndex !== -1) {
-                guildData.birthdays[existingIndex].date = dateStr;
-                guildData.birthdays[existingIndex].username = user.username; // Update name just in case
-                await guildData.save();
-                return interaction.reply({ 
-                    content: `✅ O aniversário de **${user.username}** foi atualizado para **${dateStr}**!`, 
-                    ephemeral: true 
-                });
+            if (personIndex !== -1) {
+                guildData.birthdays[personIndex].date = dateStr;
+                guildData.birthdays[personIndex].username = user.username;
+                // Reset celebrated year if date changed, to allow celebration if it's today
+                guildData.birthdays[personIndex].lastCelebratedYear = 0; 
             } else {
-                guildData.birthdays.push({ userId: user.id, username: user.username, date: dateStr });
-                await guildData.save();
-                return interaction.reply({ 
-                    content: `✅ Aniversário de **${user.username}** adicionado para o dia **${dateStr}**!`, 
-                    ephemeral: true 
-                });
+                guildData.birthdays.push({ userId: user.id, username: user.username, date: dateStr, lastCelebratedYear: 0 });
+                personIndex = guildData.birthdays.length - 1;
+                isNew = true;
             }
+
+            // Immediate Check: Is it today?
+            const now = new Date();
+            const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const currentYear = now.getFullYear();
+            let celebratedNow = false;
+
+            if (dateStr === today) {
+                const channelId = guildData.birthdayChannelId;
+                if (channelId) {
+                    const channel = interaction.guild.channels.cache.get(channelId);
+                    if (channel && channel.isTextBased()) {
+                        try {
+                            const embed = new EmbedBuilder()
+                                .setTitle('🎉 Feliz Aniversário! 🎉')
+                                .setDescription(`Parabéns, <@${user.id}>! 🎂\nHoje é o seu dia! Que você tenha um dia maravilhoso cheio de alegria!`)
+                                .setColor('#FF69B4')
+                                .setImage('attachment://birthday.gif')
+                                .setFooter({ text: 'Parabéns do Vergil Bot!' });
+
+                            await channel.send({ 
+                                content: `Parabéns <@${user.id}>! 🎈`, 
+                                embeds: [embed],
+                                files: [path.join(__dirname, '../../../assets/images/birthday.gif')]
+                            });
+                            
+                            guildData.birthdays[personIndex].lastCelebratedYear = currentYear;
+                            celebratedNow = true;
+                        } catch (err) {
+                            console.error('Error sending immediate birthday message:', err);
+                        }
+                    }
+                }
+            }
+
+            await guildData.save();
+
+            let replyMsg = isNew 
+                ? `✅ Aniversário de **${user.username}** adicionado para o dia **${dateStr}**!`
+                : `✅ O aniversário de **${user.username}** foi atualizado para **${dateStr}**!`;
+            
+            if (celebratedNow) {
+                replyMsg += "\n🎉 **E como é hoje, já mandei os parabéns!**";
+            } else if (dateStr === today && !guildData.birthdayChannelId) {
+                replyMsg += "\n⚠️ **É hoje!** Mas não mandei mensagem porque o canal de avisos não está configurado (`/aniversario configurar`).";
+            }
+
+            return interaction.reply({ content: replyMsg, ephemeral: true });
         } 
         
         else if (subcommand === 'listar') {
