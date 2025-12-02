@@ -42,6 +42,7 @@ O Vergil nunca esquece uma data importante. O bot gerencia e parabeniza automati
 | :--- | :--- | :--- |
 | `/aniversario configurar [canal]` | Define o canal de texto onde os parabéns serão enviados. | `Gerenciar Canais` |
 | `/aniversario adicionar [usuario] [data]` | Cadastra ou atualiza o aniversário de alguém (Formato: DD/MM). | Livre |
+| `/aniversario remover [usuario]` | Remove o aniversário de um usuário da lista do servidor. | Livre |
 | `/aniversario listar` | Exibe uma lista organizada de todos os aniversariantes do servidor. | Livre |
 
 ---
