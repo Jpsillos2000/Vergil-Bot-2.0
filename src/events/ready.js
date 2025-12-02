@@ -15,6 +15,8 @@ module.exports = {
 			const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); // DD/MM
 			const currentYear = now.getFullYear();
 
+			console.log(`[DEBUG] Checking birthdays for ${today} (Year: ${currentYear})`);
+
 			if (today !== lastCheckDate) {
 				lastCheckDate = today;
 			}
@@ -22,6 +24,7 @@ module.exports = {
 			try {
 				// Fetch all guilds from MongoDB
 				const guilds = await Guild.find({});
+				console.log(`[DEBUG] Found ${guilds.length} guilds in database.`);
 
 				for (const guildDoc of guilds) {
 					if (!guildDoc.birthdayChannelId) continue;
@@ -54,8 +57,7 @@ module.exports = {
 								.setFooter({ text: 'Parabéns do Vergil Bot!' });
 
 							try {
-								await channel.send({ 
-									content: `Parabéns ${mentionString}! 🎈`, 
+								await channel.send({  
 									embeds: [embed],
 									files: [path.join(__dirname, '../../assets/images/birthday.gif')]
 								});

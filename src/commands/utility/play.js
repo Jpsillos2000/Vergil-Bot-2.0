@@ -109,8 +109,7 @@ async function playNextInQueue(guildId, client) {
             .setTitle('▶️ Now Playing')
             .setDescription(`**${song.title}**`)
             .addFields(
-                { name: 'Requested by', value: `<@${song.requestedBy.id}>`, inline: true },
-                { name: 'Queue', value: `${playerInstance.queue.length} song(s) remaining`, inline: true }
+                { name: 'Requested by', value: `<@${song.requestedBy.id}>`, inline: true }
             )
             .setTimestamp();
 
@@ -125,6 +124,7 @@ async function playNextInQueue(guildId, client) {
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('pause').setLabel('Pause').setStyle(ButtonStyle.Primary).setEmoji('⏸️'),
             new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger).setEmoji('⏹️'),
+            new ButtonBuilder().setCustomId('skip').setLabel('Skip').setStyle(ButtonStyle.Secondary).setEmoji('⏭️'),
             new ButtonBuilder().setCustomId('view_queue').setLabel('Queue').setStyle(ButtonStyle.Primary).setEmoji('📜'),
             new ButtonBuilder().setCustomId('clear_queue').setLabel('Clear').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
         );
