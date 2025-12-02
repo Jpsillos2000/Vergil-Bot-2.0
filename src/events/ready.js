@@ -35,35 +35,52 @@ module.exports = {
 					// Check if date matches and user hasn't been celebrated today
 					if (person.date === today && !celebrated.has(person.id)) {
 						
-						// Try to find the user in all guilds the bot is in
+						// Try to find the target channel in all guilds (since Channel ID is unique globally usually)
 						for (const guild of client.guilds.cache.values()) {
-							try {
-								// Fetch member to ensure they are in the guild
-								const member = await guild.members.fetch(person.id).catch(() => null);
-								if (member) {
-									// Target specific channel ID: 645698417544265769
-									const channel = guild.channels.cache.get('645698417544265769');
+							const channel = guild.channels.cache.get('645698417544265769');
 
-									if (channel) {
-										const embed = new EmbedBuilder()
-											.setTitle('🎉 Feliz Aniversário! 🎉')
-											.setDescription(`Parabéns, <@${person.id}>! 🎂\nHoje é o seu dia! Que você tenha um dia maravilhoso cheio de alegria!`)
-											.setColor('#FF69B4')
-											.setFooter({ text: 'Parabéns do Vergil Bot!' });
+							if (channel) {
+								const isSnowflake = /^\d+$/.test(person.id);
+								let mentionString = `**${person.name}**`; // Default to bold name
+								let shouldSend = true;
 
-										// Sending content with the GIF link ensures it renders in Discord
-										await channel.send({ 
-											content: `Parabéns <@${person.id}>! 🎈\nhttps://tenor.com/view/happy-birthday-happy-birthday-wishes-birthday-wishes-cake-birthday-gif-12993370231673496431`, 
-											embeds: [embed] 
-										});
-										
-										console.log(`Celebrated birthday for ${person.name} (${person.id}) in ${guild.name}`);
-										celebrated.add(person.id);
-										break; // Stop searching guilds for this user once celebrated
+								if (isSnowflake) {
+									// If it's a Discord ID, verify membership to avoid spamming non-members (optional, but good practice)
+									// Or we can just tag them blindly. 
+									// Let's check if they are in the guild to be safe/polite
+									try {
+										const member = await guild.members.fetch(person.id).catch(() => null);
+										if (member) {
+											mentionString = `<@${person.id}>`;
+										} else {
+											// If user not in guild, maybe don't announce? Or announce by name?
+											// Let's announce by name if they aren't there, or just skip? 
+											// User asked for a list of names, likely active people.
+											// We'll stick to the mention if it's an ID, even if fetch fails (it will just look like <@ID>)
+											// or fallback to name.
+											// Let's use the name if fetch fails to ensure it looks nice.
+											mentionString = `**${person.name}**`; 
+										}
+									} catch (e) {
+										mentionString = `**${person.name}**`;
 									}
 								}
-							} catch (err) {
-								console.error(`Error processing birthday for ${person.id} in guild ${guild.id}:`, err);
+
+								// Construct the message
+								const embed = new EmbedBuilder()
+									.setTitle('🎉 Feliz Aniversário! 🎉')
+									.setDescription(`Parabéns, ${mentionString}! 🎂\nHoje é o seu dia! Que você tenha um dia maravilhoso cheio de alegria!`)
+									.setColor('#FF69B4')
+									.setFooter({ text: 'Parabéns do Vergil Bot!' });
+
+								await channel.send({ 
+									content: `Parabéns ${mentionString}! 🎈\nhttps://tenor.com/view/happy-birthday-happy-birthday-wishes-birthday-wishes-cake-birthday-gif-12993370231673496431`, 
+									embeds: [embed] 
+								});
+								
+								console.log(`Celebrated birthday for ${person.name} (${person.id}) in ${guild.name}`);
+								celebrated.add(person.id);
+								break; // Stop searching guilds for this user once celebrated (channel ID is unique)
 							}
 						}
 					}

@@ -100,7 +100,11 @@ module.exports = {
                 return dayA - dayB;
             });
 
-            const description = birthdays.map(b => `**${b.date}** - <@${b.id}>`).join('\n');
+            const description = birthdays.map(b => {
+                const isSnowflake = /^\d+$/.test(b.id);
+                const mention = isSnowflake ? `<@${b.id}>` : `**${b.name}**`;
+                return `**${b.date}** - ${mention}`;
+            }).join('\n');
 
             const embed = new EmbedBuilder()
                 .setTitle('📅 Aniversariantes do Servidor')
