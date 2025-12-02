@@ -1,31 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const birthdaysFilePath = path.join(__dirname, '../../data/birthdays.json');
-
-// Helper to ensure file exists and return data
-const getBirthdaysData = () => {
-    if (!fs.existsSync(birthdaysFilePath)) {
-        fs.writeFileSync(birthdaysFilePath, '{}', 'utf8');
-        return {};
-    }
-    try {
-        const content = fs.readFileSync(birthdaysFilePath, 'utf8');
-        // Handle legacy array format by returning empty object (migration happens in ready.js)
-        // or return parsed object if valid
-        if (content.trim().startsWith('[')) return {}; 
-        return JSON.parse(content);
-    } catch (error) {
-        console.error('Error reading birthdays file:', error);
-        return {};
-    }
-};
-
-// Helper to save data
-const saveData = (data) => {
-    fs.writeFileSync(birthdaysFilePath, JSON.stringify(data, null, 4), 'utf8');
-};
+const Guild = require('../../models/Guild');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -63,11 +37,10 @@ module.exports = {
         
         if (!guildId) return interaction.reply({ content: 'Este comando só pode ser usado em servidores.', ephemeral: true });
 
-        let allData = getBirthdaysData();
-        
-        // Ensure guild entry exists
-        if (!allData[guildId]) {
-            allData[guildId] = { channelId: null, users: [] };
+        // Fetch or create guild document
+        let guildData = await Guild.findOne({ guildId: guildId });
+        if (!guildData) {
+            guildData = new Guild({ guildId: guildId, birthdays: [] });
         }
 
         if (subcommand === 'configurar') {
@@ -78,9 +51,8 @@ module.exports = {
 
             const channel = interaction.options.getChannel('canal');
             
-            // Update channel ID
-            allData[guildId].channelId = channel.id;
-            saveData(allData);
+            guildData.birthdayChannelId = channel.id;
+            await guildData.save();
 
             return interaction.reply({ 
                 content: `✅ O canal de aniversários foi definido para ${channel}!`, 
@@ -101,19 +73,19 @@ module.exports = {
                 });
             }
 
-            const guildUsers = allData[guildId].users;
-            const existingIndex = guildUsers.findIndex(b => b.id === user.id);
+            const existingIndex = guildData.birthdays.findIndex(b => b.userId === user.id);
             
             if (existingIndex !== -1) {
-                guildUsers[existingIndex] = { id: user.id, name: user.username, date: dateStr };
-                saveData(allData);
+                guildData.birthdays[existingIndex].date = dateStr;
+                guildData.birthdays[existingIndex].username = user.username; // Update name just in case
+                await guildData.save();
                 return interaction.reply({ 
                     content: `✅ O aniversário de **${user.username}** foi atualizado para **${dateStr}**!`, 
                     ephemeral: true 
                 });
             } else {
-                guildUsers.push({ id: user.id, name: user.username, date: dateStr });
-                saveData(allData);
+                guildData.birthdays.push({ userId: user.id, username: user.username, date: dateStr });
+                await guildData.save();
                 return interaction.reply({ 
                     content: `✅ Aniversário de **${user.username}** adicionado para o dia **${dateStr}**!`, 
                     ephemeral: true 
@@ -122,23 +94,23 @@ module.exports = {
         } 
         
         else if (subcommand === 'listar') {
-            const guildUsers = allData[guildId].users;
+            const birthdays = guildData.birthdays;
 
-            if (guildUsers.length === 0) {
+            if (birthdays.length === 0) {
                 return interaction.reply({ content: 'Nenhum aniversário cadastrado neste servidor.', ephemeral: true });
             }
 
             // Sort
-            guildUsers.sort((a, b) => {
+            birthdays.sort((a, b) => {
                 const [dayA, monthA] = a.date.split('/').map(Number);
                 const [dayB, monthB] = b.date.split('/').map(Number);
                 if (monthA !== monthB) return monthA - monthB;
                 return dayA - dayB;
             });
 
-            const description = guildUsers.map(b => {
-                const isSnowflake = /^\d+$/.test(b.id);
-                const mention = isSnowflake ? `<@${b.id}>` : `**${b.name}**`;
+            const description = birthdays.map(b => {
+                const isSnowflake = /^\d+$/.test(b.userId);
+                const mention = isSnowflake ? `<@${b.userId}>` : `**${b.username}**`;
                 return `**${b.date}** - ${mention}`;
             }).join('\n');
 
@@ -146,7 +118,7 @@ module.exports = {
                 .setTitle(`📅 Aniversariantes: ${interaction.guild.name}`)
                 .setDescription(description)
                 .setColor('#FF69B4')
-                .setFooter({ text: `Total: ${guildUsers.length} aniversariantes` });
+                .setFooter({ text: `Total: ${birthdays.length} aniversariantes` });
 
             return interaction.reply({ embeds: [embed], ephemeral: false });
         }

@@ -1,10 +1,7 @@
-const { Events, EmbedBuilder, ChannelType } = require('discord.js');
-const fs = require('node:fs');
+const { Events, EmbedBuilder } = require('discord.js');
 const path = require('node:path');
+const Guild = require('../models/Guild');
 
-// Keep track of users celebrated today to avoid spamming on restarts or repeated checks
-// Format: "GUILD_ID-USER_ID"
-const celebrated = new Set();
 let lastCheckDate = '';
 
 module.exports = {
@@ -13,85 +10,40 @@ module.exports = {
 	async execute(client) {
 		console.log(`Ready! Logged in as ${client.user.tag}`);
 
-		const filePath = path.join(__dirname, '../data/birthdays.json');
-		if (!fs.existsSync(filePath)) {
-			fs.writeFileSync(filePath, '{}', 'utf8');
-		}
-
-		// MIGRATION LOGIC: Convert legacy array to Guild Object
-		try {
-			const rawContent = fs.readFileSync(filePath, 'utf8');
-			if (rawContent.trim().startsWith('[')) {
-				console.log('Legacy birthdays format detected. Attempting migration...');
-				const legacyUsers = JSON.parse(rawContent);
-				
-				// Find the guild that owns the old hardcoded channel
-				const legacyChannelId = '645698417544265769';
-				let targetGuildId = null;
-
-				// We need to fetch the channel to find its guild
-				try {
-					const channel = await client.channels.fetch(legacyChannelId).catch(() => null);
-					if (channel && channel.guild) {
-						targetGuildId = channel.guild.id;
-						console.log(`Found legacy channel in guild: ${channel.guild.name} (${targetGuildId})`);
-					}
-				} catch (err) {
-					console.error('Could not fetch legacy channel for migration:', err);
-				}
-
-				if (targetGuildId) {
-					const newData = {};
-					newData[targetGuildId] = {
-						channelId: legacyChannelId,
-						users: legacyUsers
-					};
-					fs.writeFileSync(filePath, JSON.stringify(newData, null, 4), 'utf8');
-					console.log('Migration successful! Data saved under guild ID:', targetGuildId);
-				} else {
-					console.warn('Migration failed: Could not determine guild ID. Keeping legacy file (it might not work until fixed).');
-				}
-			}
-		} catch (err) {
-			console.error('Error during migration check:', err);
-		}
-
 		const checkBirthdays = async () => {
 			const now = new Date();
 			const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); // DD/MM
 			const currentYear = now.getFullYear();
 
+			if (today !== lastCheckDate) {
+				lastCheckDate = today;
+			}
+
 			try {
-				// Reload data to get fresh state
-				const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-				let dataChanged = false;
+				// Fetch all guilds from MongoDB
+				const guilds = await Guild.find({});
 
-				// Iterate through each Guild ID in the JSON
-				for (const guildId of Object.keys(data)) {
-					const guildData = data[guildId];
-					
-					// Skip if no channel configured
-					if (!guildData.channelId) continue;
+				for (const guildDoc of guilds) {
+					if (!guildDoc.birthdayChannelId) continue;
 
-					const channel = await client.channels.fetch(guildData.channelId).catch(() => null);
-					if (!channel || !channel.isTextBased()) {
-						continue;
-					}
+					const channel = await client.channels.fetch(guildDoc.birthdayChannelId).catch(() => null);
+					if (!channel || !channel.isTextBased()) continue;
 
-					for (const person of guildData.users) {
-						// Check if date matches AND if we haven't celebrated this year yet
+					let docChanged = false;
+
+					for (const person of guildDoc.birthdays) {
 						if (person.date === today && person.lastCelebratedYear !== currentYear) {
 							
-							const isSnowflake = /^\d+$/.test(person.id);
-							let mentionString = `**${person.name}**`;
+							const isSnowflake = /^\d+$/.test(person.userId);
+							let mentionString = `**${person.username}**`;
 
 							if (isSnowflake) {
 								try {
-									const member = await channel.guild.members.fetch(person.id).catch(() => null);
+									const member = await channel.guild.members.fetch(person.userId).catch(() => null);
 									if (member) {
-										mentionString = `<@${person.id}>`;
+										mentionString = `<@${person.userId}>`;
 									}
-								} catch (e) { /* Ignore fetch errors */ }
+								} catch (e) { /* Ignore */ }
 							}
 
 							const embed = new EmbedBuilder()
@@ -108,33 +60,27 @@ module.exports = {
 									files: [path.join(__dirname, '../../assets/images/birthday.gif')]
 								});
 								
-								console.log(`Celebrated birthday for ${person.name} in guild ${guildId}`);
+								console.log(`Celebrated birthday for ${person.username} in guild ${guildDoc.guildId}`);
 								
-								// Mark as celebrated for this year and flag for save
 								person.lastCelebratedYear = currentYear;
-								dataChanged = true;
+								docChanged = true;
 
 							} catch (err) {
-								console.error(`Failed to send message in guild ${guildId}:`, err);
+								console.error(`Failed to send message in guild ${guildDoc.guildId}:`, err);
 							}
 						}
 					}
-				}
 
-				// Save changes to file if any birthday was celebrated
-				if (dataChanged) {
-					fs.writeFileSync(filePath, JSON.stringify(data, null, 4), 'utf8');
+					if (docChanged) {
+						await guildDoc.save();
+					}
 				}
-
 			} catch (err) {
 				console.error('Error checking birthdays:', err);
 			}
 		};
 
-		// Run check immediately on startup
 		checkBirthdays();
-
-		// Schedule check every hour
 		setInterval(checkBirthdays, 60 * 60 * 1000);
 	},
 };

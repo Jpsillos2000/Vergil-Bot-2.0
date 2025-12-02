@@ -1,8 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
+const mongoose = require('mongoose');
 
 const token = process.env.DISCORD_TOKEN;
+const mongoUri = process.env.MONGODB_URI;
 
 const client = new Client({ intents: [
         GatewayIntentBits.Guilds,
@@ -42,6 +44,14 @@ for (const file of eventFiles) {
 	} else {
 		client.on(event.name, (...args) => event.execute(...args));
 	}
+}
+
+if (mongoUri) {
+	mongoose.connect(mongoUri)
+		.then(() => console.log('Connected to MongoDB!'))
+		.catch((err) => console.error('Failed to connect to MongoDB:', err));
+} else {
+	console.warn('MONGODB_URI not found in .env. Database features will not work.');
 }
 
 client.login(token);
