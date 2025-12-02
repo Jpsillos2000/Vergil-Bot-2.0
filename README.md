@@ -48,21 +48,47 @@ O Vergil nunca esquece uma data importante. O bot gerencia e parabeniza automati
 
 ### 🎵 Música Avançada
 
-Transforme seu canal de voz em uma arena de som com suporte a reprodução via YouTube.
 
-- **Reprodução de Alta Qualidade:** Usa FFmpeg para processamento de áudio.
-- **Fila Inteligente:** Suporte a adição de múltiplas músicas.
-- **Controles:** Pause, Resume, Skip e Stop.
+
+Transforme seu canal de voz em uma arena de som com suporte a reprodução via YouTube, arquivos e links diretos.
+
+
+
+-   **Interface Interativa:** Um painel de controle dinâmico que permanece no canal, permitindo controle total da reprodução diretamente pelos botões.
+
+-   **Reprodução de Alta Qualidade:** Utiliza FFmpeg para processamento de áudio, garantindo a melhor experiência sonora.
+
+-   **Fila Inteligente:** Adicione várias músicas à fila. O player avança automaticamente e oferece visualização e gerenciamento interativo da fila.
+
+
 
 **Comandos:**
+
 | Comando | Descrição |
+
 | :--- | :--- |
-| `/play [busca/link]` | Toca uma música do YouTube ou adiciona à fila. |
-| `/stop` | Para a música e desconecta o bot. |
-| `/skip` | Pula para a próxima música da fila. |
-| `/pause` | Pausa a reprodução atual. |
-| `/resume` | Retoma a reprodução pausada. |
-| `/queue` | Mostra a fila de músicas atual. |
+
+| `/play [busca/link/arquivo]` | Inicia a reprodução de uma música ou adiciona-a à fila. Você pode usar: um link do YouTube/SoundCloud, um arquivo de mídia anexado, ou selecionar uma das músicas pré-definidas. |
+
+
+
+**Controle de Reprodução (via Botões no Player Interativo):**
+
+Uma vez que a música começa, um painel interativo (embed + botões) aparecerá. Use os botões diretamente na mensagem para gerenciar sua sessão:
+
+| Botão | Descrição |
+
+| :--- | :--- |
+
+| ⏸️ Pausar / ▶️ Retomar | Pausa ou retoma a música atual. |
+
+| ⏹️ Parar | Para a reprodução, limpa a fila e desconecta o bot do canal de voz. |
+
+| ⏭️ Pular | Pula para a próxima música na fila. |
+
+| 📜 Fila | Exibe a fila de músicas completa em uma mensagem efêmera (visível só para você), com opções de navegação e seleção para tocar. |
+
+| 🗑️ Limpar | Limpa toda a fila de músicas. |
 
 ---
 
