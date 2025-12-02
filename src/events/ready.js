@@ -59,15 +59,12 @@ module.exports = {
 		const checkBirthdays = async () => {
 			const now = new Date();
 			const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); // DD/MM
-
-			if (today !== lastCheckDate) {
-				celebrated.clear();
-				lastCheckDate = today;
-			}
+			const currentYear = now.getFullYear();
 
 			try {
-				// Reload data every check to support dynamic updates
+				// Reload data to get fresh state
 				const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+				let dataChanged = false;
 
 				// Iterate through each Guild ID in the JSON
 				for (const guildId of Object.keys(data)) {
@@ -78,20 +75,18 @@ module.exports = {
 
 					const channel = await client.channels.fetch(guildData.channelId).catch(() => null);
 					if (!channel || !channel.isTextBased()) {
-						console.log(`Invalid or missing channel for guild ${guildId}`);
 						continue;
 					}
 
 					for (const person of guildData.users) {
-						const celebrationKey = `${guildId}-${person.id}`;
-
-						if (person.date === today && !celebrated.has(celebrationKey)) {
+						// Check if date matches AND if we haven't celebrated this year yet
+						if (person.date === today && person.lastCelebratedYear !== currentYear) {
+							
 							const isSnowflake = /^\d+$/.test(person.id);
 							let mentionString = `**${person.name}**`;
 
 							if (isSnowflake) {
 								try {
-									// Try to fetch member to see if they are still in the server
 									const member = await channel.guild.members.fetch(person.id).catch(() => null);
 									if (member) {
 										mentionString = `<@${person.id}>`;
@@ -114,19 +109,32 @@ module.exports = {
 								});
 								
 								console.log(`Celebrated birthday for ${person.name} in guild ${guildId}`);
-								celebrated.add(celebrationKey);
+								
+								// Mark as celebrated for this year and flag for save
+								person.lastCelebratedYear = currentYear;
+								dataChanged = true;
+
 							} catch (err) {
 								console.error(`Failed to send message in guild ${guildId}:`, err);
 							}
 						}
 					}
 				}
+
+				// Save changes to file if any birthday was celebrated
+				if (dataChanged) {
+					fs.writeFileSync(filePath, JSON.stringify(data, null, 4), 'utf8');
+				}
+
 			} catch (err) {
 				console.error('Error checking birthdays:', err);
 			}
 		};
 
+		// Run check immediately on startup
 		checkBirthdays();
+
+		// Schedule check every hour
 		setInterval(checkBirthdays, 60 * 60 * 1000);
 	},
 };
