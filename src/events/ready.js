@@ -71,10 +71,11 @@ module.exports = {
 									.setTitle('🎉 Feliz Aniversário! 🎉')
 									.setDescription(`Parabéns, ${mentionString}! 🎂\nHoje é o seu dia! Que você tenha um dia maravilhoso cheio de alegria!`)
 									.setColor('#FF69B4')
+									.setImage('https://media.tenor.com/images/12993370231673496431/tenor.gif') // Direct GIF link
 									.setFooter({ text: 'Parabéns do Vergil Bot!' });
 
 								await channel.send({ 
-									content: `Parabéns ${mentionString}! 🎈\nhttps://tenor.com/view/happy-birthday-happy-birthday-wishes-birthday-wishes-cake-birthday-gif-12993370231673496431`, 
+									content: `Parabéns ${mentionString}! 🎈`, // Remove GIF link from content
 									embeds: [embed] 
 								});
 								
