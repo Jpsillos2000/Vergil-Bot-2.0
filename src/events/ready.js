@@ -24,10 +24,9 @@ module.exports = {
 
 			const filePath = path.join(__dirname, '../data/birthdays.json');
 			if (!fs.existsSync(filePath)) {
-				console.log('Birthdays file not found at:', filePath);
-				return;
+				fs.writeFileSync(filePath, '[]', 'utf8'); // Create an empty file if it doesn't exist
 			}
-
+			
 			try {
 				const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
