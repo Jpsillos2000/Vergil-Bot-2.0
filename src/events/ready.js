@@ -41,14 +41,8 @@ module.exports = {
 								// Fetch member to ensure they are in the guild
 								const member = await guild.members.fetch(person.id).catch(() => null);
 								if (member) {
-									// Find a suitable channel
-									const channel = guild.channels.cache.find(ch => 
-										(ch.name.includes('aniversari') || 
-										ch.name.includes('geral') || 
-										ch.name.includes('chat') ||
-										ch.name.includes('general')) &&
-										ch.type === 0 // TextChannel
-									);
+									// Target specific channel ID: 645698417544265769
+									const channel = guild.channels.cache.get('645698417544265769');
 
 									if (channel) {
 										const embed = new EmbedBuilder()
