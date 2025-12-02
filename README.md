@@ -62,7 +62,9 @@ Transforme seu canal de voz em uma arena de som com suporte a reprodução via Y
 
 
 
-**Comandos:**
+**Comando Principal:**
+
+
 
 | Comando | Descrição |
 
@@ -72,23 +74,23 @@ Transforme seu canal de voz em uma arena de som com suporte a reprodução via Y
 
 
 
-**Controle de Reprodução (via Botões no Player Interativo):**
+**Painel de Controle (Botões):**
 
-Uma vez que a música começa, um painel interativo (embed + botões) aparecerá. Use os botões diretamente na mensagem para gerenciar sua sessão:
 
-| Botão | Descrição |
 
-| :--- | :--- |
+Uma vez que a música começa, use os botões abaixo da mensagem para controlar o player:
 
-| ⏸️ Pausar / ▶️ Retomar | Pausa ou retoma a música atual. |
 
-| ⏹️ Parar | Para a reprodução, limpa a fila e desconecta o bot do canal de voz. |
 
-| ⏭️ Pular | Pula para a próxima música na fila. |
+*   ▶️ **Retomar** / ⏸️ **Pausar**: Controla a reprodução atual.
 
-| 📜 Fila | Exibe a fila de músicas completa em uma mensagem efêmera (visível só para você), com opções de navegação e seleção para tocar. |
+*   ⏹️ **Parar**: Para a música, limpa a fila e desconecta o bot.
 
-| 🗑️ Limpar | Limpa toda a fila de músicas. |
+*   ⏭️ **Pular**: Avança para a próxima música da fila.
+
+*   📜 **Fila**: Exibe a lista de reprodução completa em uma mensagem privada (efêmera), onde você pode navegar e selecionar músicas.
+
+*   🗑️ **Limpar**: Remove todas as músicas da fila.
 
 ---
 
