@@ -31,7 +31,15 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('listar')
-                .setDescription('Listar todos os aniversários deste servidor')),
+                .setDescription('Listar todos os aniversários deste servidor'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remover')
+                .setDescription('Remover o aniversário de um usuário')
+                .addUserOption(option =>
+                    option.setName('usuario')
+                        .setDescription('O usuário cujo aniversário será removido')
+                        .setRequired(true))),
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
         const guildId = interaction.guildId;
@@ -55,7 +63,7 @@ module.exports = {
             guildData.birthdayChannelId = channel.id;
             await guildData.save();
 
-            return interaction.reply({ 
+            return interaction.reply({
                 content: `✅ O canal de aniversários foi definido para ${channel}!`, 
                 ephemeral: false 
             });
@@ -68,7 +76,7 @@ module.exports = {
             // Validation
             const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])$/;
             if (!dateRegex.test(dateStr)) {
-                return interaction.reply({ 
+                return interaction.reply({
                     content: '❌ Formato de data inválido! Por favor use o formato **DD/MM** (ex: 25/12).', 
                     ephemeral: true 
                 });
@@ -107,7 +115,7 @@ module.exports = {
                                 .setImage('attachment://birthday.gif')
                                 .setFooter({ text: 'Parabéns do Vergil Bot!' });
 
-                            await channel.send({ 
+                            await channel.send({
                                 content: `Parabéns <@${user.id}>! 🎈`, 
                                 embeds: [embed],
                                 files: [path.join(__dirname, '../../../assets/images/birthday.gif')]
@@ -165,6 +173,26 @@ module.exports = {
                 .setFooter({ text: `Total: ${birthdays.length} aniversariantes` });
 
             return interaction.reply({ embeds: [embed], ephemeral: false });
+        }
+        
+        else if (subcommand === 'remover') {
+            const userToRemove = interaction.options.getUser('usuario');
+            
+            const initialLength = guildData.birthdays.length;
+            guildData.birthdays = guildData.birthdays.filter(b => b.userId !== userToRemove.id);
+
+            if (guildData.birthdays.length < initialLength) {
+                await guildData.save();
+                return interaction.reply({
+                    content: `✅ Aniversário de **${userToRemove.username}** removido com sucesso!`, 
+                    ephemeral: true 
+                });
+            } else {
+                return interaction.reply({
+                    content: `❌ Aniversário de **${userToRemove.username}** não encontrado neste servidor.`, 
+                    ephemeral: true 
+                });
+            }
         }
     },
 };
