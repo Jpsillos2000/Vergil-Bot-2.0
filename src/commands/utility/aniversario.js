@@ -126,13 +126,11 @@ module.exports = {
                         isNew = true;
                     }
         
-                    // Immediate Check: Is it today?
-                    const now = new Date();
-                    const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                    const currentYear = now.getFullYear();
-                    let celebratedNow = false;
-        
-                    if (dateStr === today) {
+                                            // Immediate Check: Is it today?
+                                            const now = new Date();
+                                            const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
+                                            const currentYear = parseInt(now.toLocaleDateString('pt-BR', { year: 'numeric', timeZone: 'America/Sao_Paulo' }));
+                                            let celebratedNow = false;                    if (dateStr === today) {
                         const channelId = guildData.birthdayChannelId;
                         if (channelId) {
                             const channel = interaction.guild.channels.cache.get(channelId);

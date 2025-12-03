@@ -12,8 +12,8 @@ module.exports = {
 
 		const checkBirthdays = async () => {
 			const now = new Date();
-			const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); // DD/MM
-			const currentYear = now.getFullYear();
+			const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }); // DD/MM
+			const currentYear = parseInt(now.toLocaleDateString('pt-BR', { year: 'numeric', timeZone: 'America/Sao_Paulo' }));
 
 			console.log(`[DEBUG] Checking birthdays for ${today} (Year: ${currentYear})`);
 
