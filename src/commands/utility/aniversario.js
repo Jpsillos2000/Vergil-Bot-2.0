@@ -1,230 +1,25 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const Guild = require('../../models/Guild');
-const path = require('node:path');
+const { SlashCommandBuilder } = require('discord.js');
+const { getBirthdayDashboard } = require('../../utils/birthdayManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('aniversario')
-        .setDescription('Gerenciar aniversários do servidor')
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('configurar')
-                .setDescription('Define o canal de avisos de aniversário')
-                .addChannelOption(option =>
-                    option.setName('canal')
-                        .setDescription('O canal onde as mensagens serão enviadas')
-                        .setRequired(true)))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('adicionar')
-                .setDescription('Adicionar o aniversário de um usuário')
-                .addUserOption(option => 
-                    option.setName('usuario')
-                        .setDescription('O usuário aniversariante')
-                        .setRequired(true))
-                .addStringOption(option =>
-                    option.setName('data')
-                        .setDescription('A data do aniversário (DD/MM)')
-                        .setRequired(true)
-                        .setMinLength(5)
-                        .setMaxLength(5)))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('listar')
-                .setDescription('Listar todos os aniversários deste servidor'))
-                .addSubcommand(subcommand =>
-                    subcommand
-                        .setName('remover')
-                        .setDescription('Remover o aniversário de um usuário')
-                        .addStringOption(option =>
-                            option.setName('usuario')
-                                .setDescription('O usuário cujo aniversário será removido')
-                                .setRequired(true)
-                                .setAutocomplete(true))),
-            async autocomplete(interaction) {
-                const focusedValue = interaction.options.getFocused();
-                const guildId = interaction.guildId;
+        .setDescription('Gerenciar aniversários (Dashboard Interativo)'),
+    
+    async execute(interaction) {
+        if (!interaction.guildId) {
+            return interaction.reply({ content: 'Este comando só pode ser usado em servidores.', ephemeral: true });
+        }
+
+        // Defer reply if fetching takes time, though usually fast
+        // But we want to reply with the dashboard directly.
         
-                try {
-                    const guildData = await Guild.findOne({ guildId: guildId });
-                    
-                    if (!guildData || !guildData.birthdays || guildData.birthdays.length === 0) {
-                        return interaction.respond([]);
-                    }
-        
-                    // Filter birthdays based on the focused value (search by name)
-                    const filtered = guildData.birthdays.filter(person => 
-                        person.username.toLowerCase().includes(focusedValue.toLowerCase())
-                    );
-        
-                    // Map to API format (max 25 choices)
-                    const choices = filtered.slice(0, 25).map(person => ({
-                        name: `${person.username} (${person.date})`,
-                        value: person.userId // We send the ID as the value
-                    }));
-        
-                    await interaction.respond(choices);
-                } catch (error) {
-                    console.error('Autocomplete error:', error);
-                    // In case of error, respond with empty to avoid interaction fail
-                    await interaction.respond([]).catch(() => {}); 
-                }
-            },
-            async execute(interaction) {
-                const subcommand = interaction.options.getSubcommand();
-                const guildId = interaction.guildId;
-                
-                if (!guildId) return interaction.reply({ content: 'Este comando só pode ser usado em servidores.', ephemeral: true });
-        
-                // Fetch or create guild document
-                let guildData = await Guild.findOne({ guildId: guildId });
-                if (!guildData) {
-                    guildData = new Guild({ guildId: guildId, birthdays: [] });
-                }
-        
-                if (subcommand === 'configurar') {
-                    // Check permissions
-                    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-                        return interaction.reply({ content: '❌ Você precisa de permissão para gerenciar canais para usar este comando.', ephemeral: true });
-                    }
-        
-                    const channel = interaction.options.getChannel('canal');
-                    
-                    guildData.birthdayChannelId = channel.id;
-                    await guildData.save();
-        
-                    return interaction.reply({ 
-                        content: `✅ O canal de aniversários foi definido para ${channel}!`, 
-                        ephemeral: false 
-                    });
-                }
-        
-                else if (subcommand === 'adicionar') {
-                    const user = interaction.options.getUser('usuario');
-                    const dateStr = interaction.options.getString('data');
-        
-                    // Validation
-                    const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])$/;
-                    if (!dateRegex.test(dateStr)) {
-                        return interaction.reply({ 
-                            content: '❌ Formato de data inválido! Por favor use o formato **DD/MM** (ex: 25/12).', 
-                            ephemeral: true 
-                        });
-                    }
-        
-                    let personIndex = guildData.birthdays.findIndex(b => b.userId === user.id);
-                    let isNew = false;
-                    
-                    if (personIndex !== -1) {
-                        guildData.birthdays[personIndex].date = dateStr;
-                        guildData.birthdays[personIndex].username = user.username;
-                        // Reset celebrated year if date changed, to allow celebration if it's today
-                        guildData.birthdays[personIndex].lastCelebratedYear = 0; 
-                    } else {
-                        guildData.birthdays.push({ userId: user.id, username: user.username, date: dateStr, lastCelebratedYear: 0 });
-                        personIndex = guildData.birthdays.length - 1;
-                        isNew = true;
-                    }
-        
-                                            // Immediate Check: Is it today?
-                                            const now = new Date();
-                                            const today = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
-                                            const currentYear = parseInt(now.toLocaleDateString('pt-BR', { year: 'numeric', timeZone: 'America/Sao_Paulo' }));
-                                            let celebratedNow = false;                    if (dateStr === today) {
-                        const channelId = guildData.birthdayChannelId;
-                        if (channelId) {
-                            const channel = interaction.guild.channels.cache.get(channelId);
-                            if (channel && channel.isTextBased()) {
-                                try {
-                                    const embed = new EmbedBuilder()
-                                        .setTitle('🎉 Feliz Aniversário! 🎉')
-                                        .setDescription(`Parabéns, <@${user.id}>! 🎂\nHoje é o seu dia! Que você tenha um dia maravilhoso cheio de alegria!`)
-                                        .setColor('#FF69B4')
-                                        .setImage('attachment://birthday.gif')
-                                        .setFooter({ text: 'Parabéns do Vergil Bot!' });
-        
-                                    await channel.send({ 
-                                        content: `Parabéns <@${user.id}>! 🎈`, 
-                                        embeds: [embed],
-                                        files: [path.join(__dirname, '../../../assets/images/birthday.gif')]
-                                    });
-                                    
-                                    guildData.birthdays[personIndex].lastCelebratedYear = currentYear;
-                                    celebratedNow = true;
-                                } catch (err) {
-                                    console.error('Error sending immediate birthday message:', err);
-                                }
-                            }
-                        }
-                    }
-        
-                    await guildData.save();
-        
-                    let replyMsg = isNew 
-                        ? `✅ Aniversário de **${user.username}** adicionado para o dia **${dateStr}**!`
-                        : `✅ O aniversário de **${user.username}** foi atualizado para **${dateStr}**!`;
-                    
-                    if (celebratedNow) {
-                        replyMsg += "\n🎉 **E como é hoje, já mandei os parabéns!**";
-                    } else if (dateStr === today && !guildData.birthdayChannelId) {
-                        replyMsg += "\n⚠️ **É hoje!** Mas não mandei mensagem porque o canal de avisos não está configurado (`/aniversario configurar`).";
-                    }
-        
-                    return interaction.reply({ content: replyMsg, ephemeral: true });
-                } 
-                
-                else if (subcommand === 'listar') {
-                    const birthdays = guildData.birthdays;
-        
-                    if (birthdays.length === 0) {
-                        return interaction.reply({ content: 'Nenhum aniversário cadastrado neste servidor.', ephemeral: true });
-                    }
-        
-                    // Sort
-                    birthdays.sort((a, b) => {
-                        const [dayA, monthA] = a.date.split('/').map(Number);
-                        const [dayB, monthB] = b.date.split('/').map(Number);
-                        if (monthA !== monthB) return monthA - monthB;
-                        return dayA - dayB;
-                    });
-        
-                    const description = birthdays.map(b => {
-                        const isSnowflake = /^\d+$/.test(b.userId);
-                        const mention = isSnowflake ? `<@${b.userId}>` : `**${b.username}**`;
-                        return `**${b.date}** - ${mention}`;
-                    }).join('\n');
-        
-                    const embed = new EmbedBuilder()
-                        .setTitle(`📅 Aniversariantes: ${interaction.guild.name}`)
-                        .setDescription(description)
-                        .setColor('#FF69B4')
-                        .setFooter({ text: `Total: ${birthdays.length} aniversariantes` });
-        
-                    return interaction.reply({ embeds: [embed], ephemeral: false });
-                }
-                
-                else if (subcommand === 'remover') {
-                    const userIdToRemove = interaction.options.getString('usuario');
-                    
-                    // Find the user name for the reply message before deleting
-                    const userToRemove = guildData.birthdays.find(b => b.userId === userIdToRemove);
-                    const username = userToRemove ? userToRemove.username : 'Desconhecido';
-        
-                    const initialLength = guildData.birthdays.length;
-                    guildData.birthdays = guildData.birthdays.filter(b => b.userId !== userIdToRemove);
-        
-                    if (guildData.birthdays.length < initialLength) {
-                        await guildData.save();
-                        return interaction.reply({ 
-                            content: `✅ Aniversário de **${username}** removido com sucesso!`, 
-                            ephemeral: true 
-                        });
-                    } else {
-                        return interaction.reply({ 
-                            content: `❌ Usuário não encontrado na lista de aniversários.`, 
-                            ephemeral: true 
-                        });
-                    }
-                }
-            },
-        };
+        try {
+            const dashboard = await getBirthdayDashboard(interaction.guildId, interaction.guild.name);
+            await interaction.reply(dashboard);
+        } catch (error) {
+            console.error('Error executing aniversario command:', error);
+            await interaction.reply({ content: 'Ocorreu um erro ao carregar o painel de aniversários.', ephemeral: true });
+        }
+    },
+};

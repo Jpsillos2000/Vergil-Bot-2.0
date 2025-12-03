@@ -189,7 +189,16 @@ module.exports = {
 
             await interaction.editReply({ embeds: [createStatusEmbed('⚙️ Processing video... This might take a while.')] });
 
-            const pythonPath = '/usr/src/app/.venv_python/bin/python';
+            const pythonVenvPath = path.join(process.cwd(), '.venv_python', 'bin', 'python');
+            const localVenvPath = path.join(process.cwd(), '.venv', 'bin', 'python');
+            
+            let pythonPath = pythonVenvPath;
+            if (!fs.existsSync(pythonPath)) {
+                pythonPath = localVenvPath;
+            }
+            
+            console.log(`Using Python environment at: ${pythonPath}`);
+
             const scriptPath = path.join(process.cwd(), 'src', 'scripts', 'virgilize.py');
             
             const pythonProcess = spawn(pythonPath, [scriptPath, inputPath, outputPath, pythonStart, pythonEnd]);

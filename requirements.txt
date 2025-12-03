@@ -1,3 +1,13 @@
-moviepy
-rembg
-numpy
+moviepy==1.0.3
+rembg==2.0.68
+numpy==2.2.6
+onnxruntime==1.23.2
+pillow==12.0.0
+scipy==1.16.3
+pymatting==1.1.14
+scikit-image==0.25.2
+opencv-python-headless==4.12.0.88
+imageio==2.37.2
+imageio-ffmpeg==0.6.0
+pooch==1.8.2
+tqdm==4.67.1

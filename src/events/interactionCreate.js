@@ -1,6 +1,7 @@
 const { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
+const { handleInteraction: handleBirthdayInteraction } = require('../utils/birthdayManager');
 
 // This helper function renders the interactive queue view
 async function renderQueueView(interaction, playerInstance) {
@@ -137,6 +138,19 @@ module.exports = {
 			}
 			return;
 		}
+
+        // Handle Birthday System Interactions
+        if (interaction.customId && interaction.customId.startsWith('aniversario_')) {
+            try {
+                await handleBirthdayInteraction(interaction);
+            } catch (error) {
+                console.error('Error in birthday handler:', error);
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ content: 'Ocorreu um erro ao processar a solicitação.', ephemeral: true });
+                }
+            }
+            return;
+        }
 
 		if (interaction.isButton()) {
 			const playerInstance = interaction.client.playerInstances.get(interaction.guildId);
