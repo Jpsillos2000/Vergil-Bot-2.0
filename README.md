@@ -7,6 +7,8 @@
 ![Discord.js](https://img.shields.io/badge/Discord.js-v14-5865F2?style=for-the-badge&logo=discord)
 ![License](https://img.shields.io/badge/License-ISC-yellow?style=for-the-badge)
 
+<img src="https://media1.tenor.com/m/24R1W5-yU48AAAAC/dmc-devil-may-cry.gif" width="600" alt="Vergil Anime Gif">
+
 **"I need more power!"** - *Vergil*
 
 Um bot multifuncional para Discord focado em **Entretenimento**, **Música** e **Gerenciamento de Comunidade**. Desenvolvido para trazer motivação e funcionalidades robustas para o seu servidor.
@@ -31,81 +33,51 @@ Um bot multifuncional para Discord focado em **Entretenimento**, **Música** e *
 
 ### 🎂 Sistema de Aniversários
 
-O Vergil nunca esquece uma data importante. O bot gerencia e parabeniza automaticamente os membros do servidor.
+O Vergil nunca esquece uma data importante. O bot gerencia e parabeniza automaticamente os membros do servidor através de um **Painel Interativo Moderno**.
 
-- **Persistência Inteligente:** Salva os dados localmente e evita mensagens duplicadas se o bot reiniciar.
-- **Multi-Servidor:** Funciona em múltiplos servidores com configurações independentes.
-- **Embed Personalizado:** Envia um cartão animado (GIF) anexado diretamente, garantindo que funcione sempre.
+- **Painel Unificado:** Controle tudo (Adicionar, Remover, Listar, Configurar) em um único Embed que se atualiza automaticamente.
+- **Verificação Imediata:** Se o aniversário for hoje, o bot já envia os parabéns na hora.
+- **Paginação:** Lista organizada com navegação por páginas.
+- **Embed Personalizado:** Envia um cartão animado (GIF) anexado diretamente.
 
-**Comandos:**
-| Comando | Descrição | Permissão |
-| :--- | :--- | :--- |
-| `/aniversario configurar [canal]` | Define o canal de texto onde os parabéns serão enviados. | `Gerenciar Canais` |
-| `/aniversario adicionar [usuario] [data]` | Cadastra ou atualiza o aniversário de alguém (Formato: DD/MM). | Livre |
-| `/aniversario remover [usuario]` | Remove o aniversário de um usuário da lista do servidor. | Livre |
-| `/aniversario listar` | Exibe uma lista organizada de todos os aniversariantes do servidor. | Livre |
+**Comando Único:**
+`/aniversario` - Abre o painel interativo de gerenciamento.
 
 ---
 
 ### 🎵 Música Avançada
 
-
+<div align="center">
+  <img src="https://media.tenor.com/images/f0e8d7b85c140433828191b313468a73/tenor.gif" width="400" alt="Vergil Vibing">
+</div>
 
 Transforme seu canal de voz em uma arena de som com suporte a reprodução via YouTube, arquivos e links diretos.
 
-
-
 -   **Interface Interativa:** Um painel de controle dinâmico que permanece no canal, permitindo controle total da reprodução diretamente pelos botões.
-
 -   **Reprodução de Alta Qualidade:** Utiliza FFmpeg para processamento de áudio, garantindo a melhor experiência sonora.
-
 -   **Fila Inteligente:** Adicione várias músicas à fila. O player avança automaticamente e oferece visualização e gerenciamento interativo da fila.
-
-
 
 **Comando Principal:**
 
-
-
 | Comando | Descrição |
-
 | :--- | :--- |
-
 | `/play [busca/link/arquivo]` | Inicia a reprodução de uma música ou adiciona-a à fila. Você pode usar: um link do YouTube/SoundCloud, um arquivo de mídia anexado, ou selecionar uma das músicas pré-definidas. |
-
-
-
-**Painel de Controle (Botões):**
-
-
-
-Uma vez que a música começa, use os botões abaixo da mensagem para controlar o player:
-
-
-
-*   ▶️ **Retomar** / ⏸️ **Pausar**: Controla a reprodução atual.
-
-*   ⏹️ **Parar**: Para a música, limpa a fila e desconecta o bot.
-
-*   ⏭️ **Pular**: Avança para a próxima música da fila.
-
-*   📜 **Fila**: Exibe a lista de reprodução completa em uma mensagem privada (efêmera), onde você pode navegar e selecionar músicas.
-
-*   🗑️ **Limpar**: Remove todas as músicas da fila.
 
 ---
 
 ### 🎬 Virgilize
 
-A funcionalidade assinatura do bot. Coloca o **Vergil** (Devil May Cry) dentro dos seus vídeos ou imagens.
+A funcionalidade assinatura do bot. Coloca o **Vergil** (Devil May Cry) dentro dos seus vídeos ou imagens, aplicando o famoso meme "To Be Continued" ou cortes motivacionais.
 
-- **Processamento de Vídeo:** Utiliza Python e OpenCV/FFmpeg para editar vídeos dinamicamente.
-- **Green Screen:** Insere o Vergil em "chroma key" sobre o vídeo enviado.
+- **Suporte a Docker e Local:** Roda perfeitamente tanto em containers quanto na sua máquina.
+- **Processamento de Vídeo:** Utiliza Python (MoviePy + OpenCV) para editar vídeos dinamicamente.
+- **Download Inteligente:** Baixa vídeos do YouTube (com recorte de tempo) ou usa anexos do Discord.
 
 **Comandos:**
 | Comando | Descrição |
 | :--- | :--- |
-| `/virgilize [arquivo]` | Envie um vídeo ou imagem e receba uma versão "Motivated" com o Vergil. |
+| `/virgilize youtube [link] [inicio] [fim]` | Cria o meme a partir de um vídeo do YouTube. |
+| `/virgilize attachment [arquivo] [inicio] [fim]` | Cria o meme a partir de um vídeo enviado. |
 
 ---
 
@@ -128,36 +100,40 @@ Siga estes passos para rodar o Vergil Bot 2.0 na sua máquina ou servidor.
 *   **Node.js** (v16.9.0 ou superior)
 *   **Python 3.8+** (para o comando `/virgilize`)
 *   **FFmpeg** (Essencial para Música e Vídeo). [Como instalar FFmpeg](https://ffmpeg.org/download.html).
-*   **Git**
+*   **Docker** (Opcional, mas recomendado para evitar problemas de dependência).
 
-### 2. Clonar o Repositório
+### 2. Instalação (Via Docker - Recomendado)
+
 ```bash
+# Clone o repositório
 git clone https://github.com/Jpsillos2000/Vergil-Bot-2.0.git
 cd Vergil-Bot-2.0
+
+# Crie o arquivo .env com suas chaves (DISCORD_TOKEN, CLIENT_ID, GUILD_ID)
+touch .env 
+
+# Suba o container (isso instalará todas as dependências automaticamente)
+docker-compose up --build -d
 ```
 
-### 3. Instalar Dependências
+### 3. Instalação (Manual / Local)
+
 ```bash
+# Clone
+git clone https://github.com/Jpsillos2000/Vergil-Bot-2.0.git
+cd Vergil-Bot-2.0
+
+# Instale dependências Node
 npm install
-pip install -r requirements.txt  # Para as dependências Python do Virgilize
-```
 
-### 4. Configurar Variáveis de Ambiente
-Crie um arquivo `.env` na raiz do projeto e preencha:
+# Crie um ambiente Python e instale dependências
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
+pip install -r requirements.txt
 
-```env
-DISCORD_TOKEN=SEU_TOKEN_DO_BOT
-CLIENT_ID=SEU_CLIENT_ID_DO_APP
-GUILD_ID=ID_DO_SERVIDOR_DE_TESTE (Opcional, para deploy global deixe sem)
-```
-
-### 5. Iniciar
-```bash
-# Modo de Desenvolvimento (reinicia ao salvar arquivos)
-npm run start
-
-# Modo de Produção
-node src/index.js
+# Inicie o bot
+npm start
 ```
 
 ---
@@ -177,15 +153,10 @@ npm run deleta
 
 ---
 
-## 📂 Estrutura de Dados
-
-*   `src/data/birthdays.json`: Armazena os aniversários de todos os servidores.
-    *   *Nota:* Este arquivo é gerado automaticamente e **ignorado pelo Git** para segurança e privacidade dos dados.
-
----
-
 <div align="center">
 
 **Desenvolvido com ⚔️ Motivação**
+
+<img src="https://media1.tenor.com/m/Xk0w2iK0m58AAAAd/vergil-dmc5.gif" width="100%" alt="Vergil Motivation">
 
 </div>
